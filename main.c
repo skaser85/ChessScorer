@@ -5,16 +5,23 @@
 #include "./nob.h"
 
 #define ASSETS_DIR "./assets"
-#define MOXICA_CHESS_ICONS_DIR ASSETS_DIR "/moxica_chess_set/Icons"
-#define MOXICA_CHESS_PIECES_DIR ASSETS_DIR "/moxica_chess_set/Pieces"
+#define PIECES_DIR ASSETS_DIR"/pieces"
+#define FONTS_DIR ASSETS_DIR"/fonts"
 
-#define PIECE_DIM_X 50
-#define PIECE_DIM_Y 100
+#define PIECE_DIM_X 55 
+#define PIECE_DIM_Y PIECE_DIM_X*2 
+#define BUTTON_PADDING PIECE_DIM_X*0.2
+#define BUTTON_MARGIN PIECE_DIM_X*0.45
+#define BUTTON_FONT_SIZE PIECE_DIM_Y*0.5
+#define BUTTON_DIM_X BUTTON_FONT_SIZE*1.5 
+#define BUTTON_DIM_Y BUTTON_FONT_SIZE+(BUTTON_PADDING*2) 
+
+#define TITLE_FONT_SIZE PIECE_DIM_Y*0.5
+#define TITLE_Y_PADDING TITLE_FONT_SIZE/3
 
 typedef struct {
-  Vector2 position;
-  Vector2 dims;
-  Texture2D tex;
+  const char* text;
+  bool active;
 } Button;
 
 typedef enum {
@@ -32,31 +39,57 @@ typedef enum {
 } PieceType;
 
 typedef struct {
-  Texture2D icon;
-  Texture2D piece;
+  Texture2D texture;
   Side side;
   PieceType pt;
   size_t value;
   const char* rank;
   size_t file;
+  bool active;
 } Piece;
 
 typedef struct {
+  Piece *items;
+  size_t count;
+  size_t capacity;
+} Pieces;
+
+typedef struct {
   Side side;
-  Piece king;
-  Piece queen;
-  Piece bishop;
-  Piece rook;
-  Piece knight;
-  Piece pawn; 
+  Pieces pieces;
 } Kingdom;
 
-void DrawButton(Button b) {
-  Rectangle rec = { .x = b.position.x, .y = b.position.y, .width = b.dims.x, .height = b.dims.y };
-  DrawRectangleLinesEx(rec, 2, WHITE);
-  size_t PADDING = 3;
-  Rectangle dest = { .x = rec.x + PADDING, .y = rec.y + PADDING, .width = rec.width - PADDING*2, .height = rec.height - PADDING*2 };
-  DrawTexturePro(b.tex, (Rectangle){0, 0, b.tex.width, b.tex.height}, dest, (Vector2){0, 0}, 0, WHITE);
+
+typedef struct {
+  Font *items;
+  size_t count;
+  size_t capacity;
+} Fonts;
+
+typedef struct {
+  Button *items;
+  size_t count;
+  size_t capacity;
+} Buttons;
+
+Fonts LoadFonts() {
+  Fonts fonts = {0};
+  Font f = LoadFontEx(FONTS_DIR"/archeologicaps/Archeologicaps.ttf", TITLE_FONT_SIZE, NULL, 0);
+  da_append(&fonts, f);
+  f = LoadFontEx(FONTS_DIR"/atiba/Atiba.ttf", TITLE_FONT_SIZE, NULL, 0);
+  da_append(&fonts, f);
+  f = LoadFontEx(FONTS_DIR"/audiowide/Audiowide-Regular.ttf", TITLE_FONT_SIZE, NULL, 0);
+  da_append(&fonts, f);
+  return fonts;
+}
+
+void DrawButton(Button *b,  Font font, Vector2 pos, Vector2 dims) {
+  Vector2 textDims = MeasureTextEx(font, b->text, BUTTON_FONT_SIZE, 1);
+  Rectangle rec = { .x = pos.x, .y = pos.y, .width = dims.x, .height = dims.y };
+  if (b->active) {
+    DrawRectangleLinesEx(rec, 1, LIME);
+  }
+  DrawTextEx(font, b->text, (Vector2){(pos.x+rec.width/2)-(textDims.x/2), (pos.y+rec.height/2)-(textDims.y/2) }, BUTTON_FONT_SIZE, 1, WHITE);
 }
 
 size_t GetPieceValue(PieceType pt) {
@@ -88,56 +121,221 @@ const char* GetSideName(Side side) {
   return "black";
 }
 
-Piece CreatePiece(Side side, PieceType pt) {
+Piece CreatePiece(Side side, PieceType pt, const char* piecesName) {
   Piece p = {0};
+  p.active = false;
   p.side = side;
   p.pt = pt;
   p.value = GetPieceValue(pt);
   p.rank = "X";
   p.file = 0;
-  p.icon = LoadTexture(temp_sprintf("%s/%s_%s.png", MOXICA_CHESS_ICONS_DIR, GetSideName(side), GetPieceImageName(pt)));
-  p.piece= LoadTexture(temp_sprintf("%s/%s_%s.png", MOXICA_CHESS_PIECES_DIR, GetSideName(side), GetPieceImageName(pt)));
+  p.texture = LoadTexture(temp_sprintf("%s/%s/%s_%s.png", PIECES_DIR, piecesName, GetSideName(side), GetPieceImageName(pt)));
   return p;
 }
 
-Kingdom CreateKingdom(Side side) {
+Kingdom CreateKingdom(Side side, const char* piecesName) {
   Kingdom k = {0};
   k.side = side;
-  k.king = CreatePiece(side, PT_KING);
-  k.queen = CreatePiece(side, PT_QUEEN);
-  k.bishop = CreatePiece(side, PT_BISHOP);
-  k.rook = CreatePiece(side, PT_ROOK);
-  k.knight = CreatePiece(side, PT_KNIGHT);
-  k.pawn = CreatePiece(side, PT_PAWN);
+  k.pieces = (Pieces){0};
+  da_append(&k.pieces, CreatePiece(side, PT_KING, piecesName));
+  da_append(&k.pieces, CreatePiece(side, PT_QUEEN, piecesName));
+  da_append(&k.pieces, CreatePiece(side, PT_BISHOP, piecesName));
+  da_append(&k.pieces, CreatePiece(side, PT_ROOK, piecesName));
+  da_append(&k.pieces, CreatePiece(side, PT_KNIGHT, piecesName));
+  da_append(&k.pieces, CreatePiece(side, PT_PAWN, piecesName));
   return k;
 }
 
-void DrawPiece(Piece p, Vector2 pos) {
-  Rectangle rec = { .x = pos.x, .y = pos.y, .width = PIECE_DIM_X, .height = PIECE_DIM_Y };
-  DrawRectangleLinesEx(rec, 2, WHITE);
-  size_t PADDING = 3;
-  Rectangle dest = { .x = rec.x + PADDING, .y = rec.y + PADDING, .width = rec.width - PADDING*2, .height = rec.height - PADDING*2 };
-  //DrawTexturePro(p.icon, (Rectangle){0, 0, p.icon.width, p.icon.height}, dest, (Vector2){0, 0}, 0, WHITE);
-  DrawTexturePro(p.piece, (Rectangle){0, 0, p.piece.width, p.piece.height}, dest, (Vector2){0, 0}, 0, WHITE);
+Buttons CreateLetterButtons() {
+  Buttons bs = {0};
+  Button b = { .text = "a", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "b", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "c", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "d", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "e", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "f", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "g", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "h", .active = false };
+  da_append(&bs, b);
+  return bs;
 }
 
-void DrawKingdom(Kingdom k, Vector2 pos) {
-  DrawPiece(k.king, pos); 
+Buttons CreateNumberButtons() {
+  Buttons bs = {0};
+  Button b = { .text = "1", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "2", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "3", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "4", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "5", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "6", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "7", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "8", .active = false };
+  da_append(&bs, b);
+  return bs;
 }
+
+Buttons CreateActionButtons() {
+  Buttons bs = {0};
+  Button b = { .text = "x", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "+", .active = false };
+  da_append(&bs, b);
+  b = (Button){ .text = "#", .active = false };
+  da_append(&bs, b);
+  return bs;
+}
+
+void DrawPiece(Piece *p, Vector2 pos) {
+  Rectangle rec = { .x = pos.x, .y = pos.y, .width = PIECE_DIM_X, .height = PIECE_DIM_Y };
+  if (p->active) {
+    DrawRectangleLinesEx(rec, 2, LIME);
+  }
+  float factor = 0.3f;
+  Rectangle dest = { .x = rec.x + BUTTON_PADDING*factor, .y = rec.y + BUTTON_PADDING*factor, .width = rec.width - BUTTON_PADDING*2*factor, .height = rec.height - BUTTON_PADDING*2*factor };
+  DrawTexturePro(p->texture, (Rectangle){0, 0, p->texture.width, p->texture.height}, dest, (Vector2){0, 0}, 0, WHITE);
+}
+
+void DrawKingdom(Kingdom *k, Vector2 *pos, Vector2 mouse, Piece **activePiece) {
+  for (size_t i = 0; i < k->pieces.count; ++i) {
+    Piece *currentPiece = &k->pieces.items[i];
+    Rectangle rec = { .x = pos->x, .y = pos->y, .width = PIECE_DIM_X, .height = PIECE_DIM_Y };
+
+    if (!currentPiece->active && CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      if (*activePiece != NULL) {
+        (*activePiece)->active = false;
+      }
+      currentPiece->active = true;
+      *activePiece = currentPiece;
+    }
+
+    DrawPiece(currentPiece, *pos);
+
+    pos->x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+  }
+}
+
+Vector2 GetSideTextPosition(Side side, Font font) {
+  const char* text = side == SIDE_WHITE ? "WHITE" : "BLACK";
+  Vector2 dims = MeasureTextEx(font, text, 28, 1);
+  int w = GetScreenWidth();
+  int x = 0;
+  if (side == SIDE_WHITE) x = (w/4*1)-(dims.x);
+  else x = (w/4*3)-(dims.x);
+  return (Vector2) { x, TITLE_Y_PADDING };
+}
+
+int DrawTitle(Side *side, Font font, Vector2 mouse) {
+  Vector2 wPos= GetSideTextPosition(SIDE_WHITE, font);
+  Vector2 bPos = GetSideTextPosition(SIDE_BLACK, font);
+  
+  int title_bottom = (TITLE_FONT_SIZE+(TITLE_Y_PADDING*2));
+
+  Rectangle whiteRec = { .x = 0, .y = 0, .width = GetScreenWidth()/2, .height = title_bottom };
+  Rectangle blackRec = { .x = GetScreenWidth()/2, .y = 0, .width = GetScreenWidth()/2, .height = title_bottom };
+
+  Color wColor = *side == SIDE_WHITE ? BLACK : WHITE;
+  Color bColor = *side == SIDE_WHITE ? WHITE : BLACK; 
+
+  DrawRectangleRec(*side == SIDE_WHITE ? whiteRec : blackRec, WHITE); 
+  DrawLine(0, title_bottom, GetScreenWidth(), title_bottom, WHITE);
+  DrawTextEx(font, "WHITE", wPos, TITLE_FONT_SIZE, 1, wColor);
+  DrawTextEx(font, "BLACK", bPos, TITLE_FONT_SIZE, 1, bColor);
+
+  if (*side == SIDE_WHITE && CheckCollisionPointRec(mouse, blackRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) *side = SIDE_BLACK;
+  if (*side == SIDE_BLACK && CheckCollisionPointRec(mouse, whiteRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) *side = SIDE_WHITE; 
+
+  return title_bottom;
+}
+
+void DrawButtonsRow(Buttons bs, Vector2 *rowPos, Font font, Vector2 mouse, Button **activeTracker) {
+  for (size_t i = 0; i < bs.count; ++i) {
+    Button *currentButton = &bs.items[i];
+    
+    Rectangle rec = { .x = rowPos->x, .y = rowPos->y, .width = BUTTON_DIM_X, .height = BUTTON_DIM_Y };
+    if (!currentButton->active && CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      
+      if (*activeTracker != NULL) {
+        (*activeTracker)->active = false;
+      }
+      
+      currentButton->active = true;
+      *activeTracker = currentButton;
+    }
+
+    DrawButton(currentButton, font, *rowPos, (Vector2){BUTTON_DIM_X, BUTTON_DIM_Y});
+    
+    rowPos->x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+  }
+}
+
 
 int main(void)
 {
     InitWindow(800, 480, "Chess Score Keeper");
     SetTargetFPS(60);
 
-    Kingdom white = CreateKingdom(SIDE_WHITE);
-    Kingdom black = CreateKingdom(SIDE_BLACK);
-   
+    Fonts fonts = LoadFonts();
+    Font current_font = fonts.items[2];
+
+    Buttons letters = CreateLetterButtons();
+    Buttons numbers = CreateNumberButtons();
+    Buttons actionButtons = CreateActionButtons();
+
+    const char* PIECES = "moxica";
+    //const char* FONT_NAME = "archeologicaps";
+
+    Kingdom white = CreateKingdom(SIDE_WHITE, PIECES);
+    Kingdom black = CreateKingdom(SIDE_BLACK, PIECES);
+  
+    Side turn = SIDE_WHITE;
+
+    Piece *activePiece = NULL;
+    Button *activeAction = NULL;
+    Button *activeLetter = NULL;
+    Button *activeNumber = NULL;
+
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(GetColor(0x181818FF));
-        DrawKingdom(white, (Vector2){10, 10});
-        DrawKingdom(black, (Vector2){10, 10+PIECE_DIM_Y+5});
+        
+        Vector2 mouse = GetMousePosition();
+        
+        int title_bottom = DrawTitle(&turn, current_font, mouse);
+        
+        Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom+BUTTON_PADDING};
+        
+        Kingdom *kingdom = turn == SIDE_WHITE ? &white : &black;
+        DrawKingdom(kingdom, &rowPos, mouse, &activePiece);
+        
+        int bottom = rowPos.y;
+        rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6;
+        rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y);
+        DrawButtonsRow(actionButtons, &rowPos, current_font, mouse, &activeAction); 
+        
+        rowPos.y = bottom;
+        
+        rowPos.x = BUTTON_MARGIN;
+        rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN + BUTTON_PADDING);
+        DrawButtonsRow(letters, &rowPos, current_font, mouse, &activeLetter);
+        
+        rowPos.x = BUTTON_MARGIN;
+        rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN + BUTTON_PADDING);
+        DrawButtonsRow(numbers, &rowPos, current_font, mouse, &activeNumber);
+
         EndDrawing();
     }
 
