@@ -72,6 +72,10 @@ typedef struct {
   size_t capacity;
 } Buttons;
 
+bool streq(const char* s1, const char* s2) {
+  return strcmp(s1, s2) == 0;
+}
+
 Fonts LoadFonts() {
   Fonts fonts = {0};
   Font f = LoadFontEx(FONTS_DIR"/archeologicaps/Archeologicaps.ttf", TITLE_FONT_SIZE, NULL, 0);
@@ -101,6 +105,18 @@ size_t GetPieceValue(PieceType pt) {
     case PT_KNIGHT: return 3;
     case PT_PAWN: return 1;
     default: return 0;
+  }
+}
+
+const char* GetPieceLetter(PieceType pt) {
+  switch (pt) {
+    case PT_KING: return "K";
+    case PT_QUEEN: return "Q";
+    case PT_BISHOP: return "B";
+    case PT_ROOK: return "R";
+    case PT_KNIGHT: return "K";
+    case PT_PAWN: return " ";
+    default: return "";
   }
 }
 
@@ -329,13 +345,62 @@ int main(void)
         rowPos.y = bottom;
         
         rowPos.x = BUTTON_MARGIN;
-        rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN + BUTTON_PADDING);
+        rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN);
         DrawButtonsRow(letters, &rowPos, current_font, mouse, &activeLetter);
         
         rowPos.x = BUTTON_MARGIN;
-        rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN + BUTTON_PADDING);
+        rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN);
         DrawButtonsRow(numbers, &rowPos, current_font, mouse, &activeNumber);
 
+        const char* pieceText = activePiece ? GetPieceLetter(activePiece->pt) : " ";
+        const char* letterText = activeLetter ? activeLetter->text : " ";
+        const char* numberText = activeNumber ? activeNumber->text : " ";
+        const char* actionText = activeAction ? activeAction->text : "";
+        const char* move = temp_sprintf("Move: %s%s%s%s%s%s", 
+            (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", 
+            pieceText, 
+            (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "",
+            letterText, 
+            numberText,
+            ""); 
+        DrawTextEx(current_font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
+
+        Button reset = { .text = "RESET", .active = false };
+        Vector2 dims = MeasureTextEx(current_font, reset.text, BUTTON_FONT_SIZE*0.8, 1);
+        Vector2 size = { .x = dims.x + (BUTTON_PADDING*2), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
+        Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+        DrawRectangleRec(rec, RED);
+        DrawTextEx(current_font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          if (activePiece) activePiece->active = false;
+          activePiece = NULL;
+          if (activeAction) activeAction->active = false;
+          activeAction = NULL;
+          if (activeLetter) activeLetter->active = false;
+          activeLetter = NULL;
+          if (activeNumber) activeNumber->active = false;
+          activeNumber = NULL; 
+        }
+
+        Button submit = { .text = "SUBMIT", .active = false };
+        dims = MeasureTextEx(current_font, submit.text, BUTTON_FONT_SIZE*0.8, 1);
+        size = (Vector2){ .x = dims.x + (BUTTON_PADDING*4), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
+        rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+        DrawRectangleRec(rec, GREEN);
+        DrawTextEx(current_font, submit.text, (Vector2){rec.x+BUTTON_PADDING*2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          // TODO: record the move
+          turn = turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+          if (activePiece) activePiece->active = false;
+          activePiece = NULL;
+          if (activeAction) activeAction->active = false;
+          activeAction = NULL;
+          if (activeLetter) activeLetter->active = false;
+          activeLetter = NULL;
+          if (activeNumber) activeNumber->active = false;
+          activeNumber = NULL; 
+        }
+        
         EndDrawing();
     }
 
