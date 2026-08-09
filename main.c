@@ -301,7 +301,25 @@ void DrawButtonsRow(Buttons bs, Vector2 *rowPos, Font font, Vector2 mouse, Butto
 
 int main(void)
 {
-    InitWindow(800, 480, "Chess Score Keeper");
+      // 1. Initialize with temporary values so we can probe the hardware
+    InitWindow(100, 100, "Chess Score Keeper");
+
+    // 2. Query the physical monitor's current resolution dimensions
+    int monitor = GetCurrentMonitor();
+    int screenWidth = GetMonitorWidth(monitor);
+    int screenHeight = GetMonitorHeight(monitor);
+
+    // 3. Resize the window buffer to match your screen perfectly
+    SetWindowSize(screenWidth, screenHeight);
+
+    // 4. Toggle the hardware fullscreen state flags
+    ToggleFullscreen();
+
+    if (!IsWindowReady()) {
+        fprintf(stderr, "ERROR: Raylib window context failed to open.\n");
+        return 1;
+    }
+
     SetTargetFPS(60);
 
     Fonts fonts = LoadFonts();
