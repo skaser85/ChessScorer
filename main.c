@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include <raylib.h>
 #include <raymath.h>
 
@@ -38,6 +40,13 @@ typedef enum {
   PT_PAWN
 } PieceType;
 
+typedef enum {
+  SCREEN_START_GAME,
+  SCREEN_PLAYER_SETUP,
+  SCREEN_MOVES_LIST,
+  SCREEN_MOVE_SELECTION
+} ScreenState;
+
 typedef struct {
   Texture2D texture;
   Side side;
@@ -72,8 +81,96 @@ typedef struct {
   size_t capacity;
 } Buttons;
 
+typedef struct {
+  size_t count;
+  size_t fullmove;
+  Piece piece;
+  const char* rank;
+  const char* file;
+  bool capture;
+  bool check;
+  bool checkmate;
+  struct tm *timestamp;
+} Ply;
+
+typedef struct {
+  Ply *items;
+  size_t count;
+  size_t capacity;
+} Plys;
+
+typedef struct {
+  const char* name;
+  Side side;
+  Plys plys; 
+} Player;
+
+typedef struct {
+  size_t count;
+  Ply white;
+  Ply black;
+} Fullmove;
+
+typedef struct {
+  Fullmove *items;
+  size_t count;
+  size_t capacity;
+} Fullmoves;
+
+typedef struct {
+  size_t id;
+  struct tm *timestamp;
+  Player white;
+  Player black;
+  Fullmoves moves;
+} Match;
+
+typedef struct {
+  Font font;
+  Kingdom white;
+  Kingdom black;
+  Side turn;
+  const char* piecesName;
+  Piece *activePiece;
+  Button *activeAction;
+  Button *activeLetter;
+  Button *activeNumber;
+  ScreenState screen;
+  Buttons letters;
+  Buttons numbers;
+  Buttons actions;
+
+  Match match;
+} Game;
+
+struct tm *timestamp() {
+  time_t t = time(NULL);
+  return localtime(&t);
+}
+
+const char* dump_ts(struct tm *time_info) {
+ // Format matches standard PGN date strings nicely: YYYY.MM.DD HH:MM:SS
+ return TextFormat("%04d.%02d.%02d %02d:%02d:%02d", 
+                    time_info->tm_year + 1900, 
+                    time_info->tm_mon + 1, 
+                    time_info->tm_mday,
+                    time_info->tm_hour, 
+                    time_info->tm_min, 
+                    time_info->tm_sec);
+}
+
 bool streq(const char* s1, const char* s2) {
   return strcmp(s1, s2) == 0;
+}
+
+const char* GetScreenStateText(ScreenState state) {
+  switch (state) {
+    case SCREEN_START_GAME: return "START_GAME";
+    case SCREEN_PLAYER_SETUP: return "PLAYER_SETUP";
+    case SCREEN_MOVES_LIST: return "MOVES_LIST";
+    case SCREEN_MOVE_SELECTION: return "MOVE_SELECTION";
+    default: return temp_sprintf("%d", state);
+  }
 }
 
 Fonts LoadFonts() {
@@ -298,126 +395,156 @@ void DrawButtonsRow(Buttons bs, Vector2 *rowPos, Font font, Vector2 mouse, Butto
   }
 }
 
+void DrawScreen_StartGame(Game *game, Vector2 mouse) {
+  Vector2 dims = MeasureTextEx(game->font, "START GAME", TITLE_FONT_SIZE, 1);
+  Vector2 size = { .x = dims.x + (BUTTON_PADDING*2), .y = TITLE_FONT_SIZE+BUTTON_PADDING*2 };
+  Rectangle rec = { .x = GetScreenWidth()/2-size.x/2, .y = GetScreenHeight()/2-size.y/2, .width = size.x, .height = size.y };
+  DrawRectangleRec(rec, PINK);
+  DrawRectangleLinesEx(rec, 2, WHITE);
+  DrawTextEx(game->font, "START GAME", (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING}, TITLE_FONT_SIZE, 1, WHITE);
+  if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    game->match.timestamp = timestamp();
+    game->match.moves = (Fullmoves){0};
+    game->screen = SCREEN_PLAYER_SETUP; 
+  }
+}
+
+void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
+  UNUSED(game);
+  UNUSED(mouse);
+}
+
+void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
+  int title_bottom = DrawTitle(&game->turn, game->font, mouse);
+  
+  Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom+BUTTON_PADDING};
+  
+  Kingdom *kingdom = game->turn == SIDE_WHITE ? &game->white : &game->black;
+  DrawKingdom(kingdom, &rowPos, mouse, &game->activePiece);
+  
+  int bottom = rowPos.y;
+  rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6;
+  rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y);
+  DrawButtonsRow(game->actions, &rowPos, game->font, mouse, &game->activeAction); 
+  
+  rowPos.y = bottom;
+  
+  rowPos.x = BUTTON_MARGIN;
+  rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN);
+  DrawButtonsRow(game->letters, &rowPos, game->font, mouse, &game->activeLetter);
+  
+  rowPos.x = BUTTON_MARGIN;
+  rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN);
+  DrawButtonsRow(game->numbers, &rowPos, game->font, mouse, &game->activeNumber);
+
+  const char* pieceText = game->activePiece ? GetPieceLetter(game->activePiece->pt) : " ";
+  const char* letterText = game->activeLetter ? game->activeLetter->text : " ";
+  const char* numberText = game->activeNumber ? game->activeNumber->text : " ";
+  const char* actionText = game->activeAction ? game->activeAction->text : "";
+  const char* move = temp_sprintf("Move: %s%s%s%s%s%s", 
+      (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", 
+      pieceText, 
+      (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "",
+      letterText, 
+      numberText,
+      ""); 
+  DrawTextEx(game->font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
+
+  Button reset = { .text = "RESET", .active = false };
+  Vector2 dims = MeasureTextEx(game->font, reset.text, BUTTON_FONT_SIZE*0.8, 1);
+  Vector2 size = { .x = dims.x + (BUTTON_PADDING*2), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
+  Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+  DrawRectangleRec(rec, RED);
+  DrawTextEx(game->font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
+  if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (game->activePiece) game->activePiece->active = false;
+    game->activePiece = NULL;
+    if (game->activeAction) game->activeAction->active = false;
+    game->activeAction = NULL;
+    if (game->activeLetter) game->activeLetter->active = false;
+    game->activeLetter = NULL;
+    if (game->activeNumber) game->activeNumber->active = false;
+    game->activeNumber = NULL; 
+  }
+
+  Button submit = { .text = "SUBMIT", .active = false };
+  dims = MeasureTextEx(game->font, submit.text, BUTTON_FONT_SIZE*0.8, 1);
+  size = (Vector2){ .x = dims.x + (BUTTON_PADDING*4), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
+  rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+  DrawRectangleRec(rec, GREEN);
+  DrawTextEx(game->font, submit.text, (Vector2){rec.x+BUTTON_PADDING*2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
+  if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // TODO: record the move
+    
+    game->turn = game->turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+    
+    if (game->activePiece) game->activePiece->active = false;
+    game->activePiece = NULL;
+    if (game->activeAction) game->activeAction->active = false;
+    game->activeAction = NULL;
+    if (game->activeLetter) game->activeLetter->active = false;
+    game->activeLetter = NULL;
+    if (game->activeNumber) game->activeNumber->active = false;
+    game->activeNumber = NULL; 
+  }
+}
 
 int main(void)
 {
       // 1. Initialize with temporary values so we can probe the hardware
-    InitWindow(100, 100, "Chess Score Keeper");
+    InitWindow(800, 480, "Chess Score Keeper");
 
-    // 2. Query the physical monitor's current resolution dimensions
-    int monitor = GetCurrentMonitor();
-    int screenWidth = GetMonitorWidth(monitor);
-    int screenHeight = GetMonitorHeight(monitor);
+    if (false) {
+      // 2. Query the physical monitor's current resolution dimensions
+      int monitor = GetCurrentMonitor();
+      int screenWidth = GetMonitorWidth(monitor);
+      int screenHeight = GetMonitorHeight(monitor);
 
-    // 3. Resize the window buffer to match your screen perfectly
-    SetWindowSize(screenWidth, screenHeight);
+      // 3. Resize the window buffer to match your screen perfectly
+      SetWindowSize(screenWidth, screenHeight);
 
-    // 4. Toggle the hardware fullscreen state flags
-    ToggleFullscreen();
+      // 4. Toggle the hardware fullscreen state flags
+      ToggleFullscreen();
 
-    if (!IsWindowReady()) {
-        fprintf(stderr, "ERROR: Raylib window context failed to open.\n");
-        return 1;
+      if (!IsWindowReady()) {
+          fprintf(stderr, "ERROR: Raylib window context failed to open.\n");
+          return 1;
+      }
     }
 
     SetTargetFPS(60);
 
     Fonts fonts = LoadFonts();
-    Font current_font = fonts.items[2];
-
-    Buttons letters = CreateLetterButtons();
-    Buttons numbers = CreateNumberButtons();
-    Buttons actionButtons = CreateActionButtons();
-
-    const char* PIECES = "moxica";
-    //const char* FONT_NAME = "archeologicaps";
-
-    Kingdom white = CreateKingdom(SIDE_WHITE, PIECES);
-    Kingdom black = CreateKingdom(SIDE_BLACK, PIECES);
-  
-    Side turn = SIDE_WHITE;
-
-    Piece *activePiece = NULL;
-    Button *activeAction = NULL;
-    Button *activeLetter = NULL;
-    Button *activeNumber = NULL;
+    
+    Game game = {0};
+    game.font = fonts.items[2];
+    game.piecesName = "moxica";
+    game.white = CreateKingdom(SIDE_WHITE, game.piecesName);
+    game.black = CreateKingdom(SIDE_BLACK, game.piecesName);
+    game.turn = SIDE_WHITE;
+    game.activePiece = NULL;
+    game.activeAction = NULL;
+    game.activeLetter = NULL;
+    game.activeNumber = NULL;
+    game.screen = SCREEN_START_GAME;
+    game.letters = CreateLetterButtons();
+    game.numbers = CreateNumberButtons();
+    game.actions = CreateActionButtons();
+    game.match = (Match){0};
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(GetColor(0x181818FF));
         
         Vector2 mouse = GetMousePosition();
-        
-        int title_bottom = DrawTitle(&turn, current_font, mouse);
-        
-        Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom+BUTTON_PADDING};
-        
-        Kingdom *kingdom = turn == SIDE_WHITE ? &white : &black;
-        DrawKingdom(kingdom, &rowPos, mouse, &activePiece);
-        
-        int bottom = rowPos.y;
-        rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6;
-        rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y);
-        DrawButtonsRow(actionButtons, &rowPos, current_font, mouse, &activeAction); 
-        
-        rowPos.y = bottom;
-        
-        rowPos.x = BUTTON_MARGIN;
-        rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN);
-        DrawButtonsRow(letters, &rowPos, current_font, mouse, &activeLetter);
-        
-        rowPos.x = BUTTON_MARGIN;
-        rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN);
-        DrawButtonsRow(numbers, &rowPos, current_font, mouse, &activeNumber);
-
-        const char* pieceText = activePiece ? GetPieceLetter(activePiece->pt) : " ";
-        const char* letterText = activeLetter ? activeLetter->text : " ";
-        const char* numberText = activeNumber ? activeNumber->text : " ";
-        const char* actionText = activeAction ? activeAction->text : "";
-        const char* move = temp_sprintf("Move: %s%s%s%s%s%s", 
-            (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", 
-            pieceText, 
-            (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "",
-            letterText, 
-            numberText,
-            ""); 
-        DrawTextEx(current_font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
-
-        Button reset = { .text = "RESET", .active = false };
-        Vector2 dims = MeasureTextEx(current_font, reset.text, BUTTON_FONT_SIZE*0.8, 1);
-        Vector2 size = { .x = dims.x + (BUTTON_PADDING*2), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
-        Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
-        DrawRectangleRec(rec, RED);
-        DrawTextEx(current_font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
-        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-          if (activePiece) activePiece->active = false;
-          activePiece = NULL;
-          if (activeAction) activeAction->active = false;
-          activeAction = NULL;
-          if (activeLetter) activeLetter->active = false;
-          activeLetter = NULL;
-          if (activeNumber) activeNumber->active = false;
-          activeNumber = NULL; 
-        }
-
-        Button submit = { .text = "SUBMIT", .active = false };
-        dims = MeasureTextEx(current_font, submit.text, BUTTON_FONT_SIZE*0.8, 1);
-        size = (Vector2){ .x = dims.x + (BUTTON_PADDING*4), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
-        rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
-        DrawRectangleRec(rec, GREEN);
-        DrawTextEx(current_font, submit.text, (Vector2){rec.x+BUTTON_PADDING*2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
-        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-          // TODO: record the move
-          turn = turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
-          if (activePiece) activePiece->active = false;
-          activePiece = NULL;
-          if (activeAction) activeAction->active = false;
-          activeAction = NULL;
-          if (activeLetter) activeLetter->active = false;
-          activeLetter = NULL;
-          if (activeNumber) activeNumber->active = false;
-          activeNumber = NULL; 
-        }
+       
+        switch (game.screen) {
+          case SCREEN_START_GAME: DrawScreen_StartGame(&game, mouse); break;
+          case SCREEN_PLAYER_SETUP: DrawScreen_PlayerSetup(&game, mouse); break;
+          case SCREEN_MOVES_LIST: break;
+          case SCREEN_MOVE_SELECTION: DrawScreen_MoveSelection(&game, mouse); break;
+          default: nob_log(ERROR, "Unknown screen state: %s", GetScreenStateText(game.screen)); 
+        } 
         
         EndDrawing();
     }
