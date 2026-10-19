@@ -1,0 +1,163 @@
+{
+    "processed_files": [
+        {
+            "path": "LICENSE",
+            "chunks": 1,
+            "size": 1074,
+            "lines": 20,
+            "words": 170
+        },
+        {
+            "path": "nob.h",
+            "chunks": 1,
+            "size": 106192,
+            "lines": 2873,
+            "words": 11248
+        },
+        {
+            "path": "main_pi",
+            "chunks": 0,
+            "size": 1221336,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "flag.h",
+            "chunks": 1,
+            "size": 35973,
+            "lines": 1007,
+            "words": 3990
+        },
+        {
+            "path": "README.md",
+            "chunks": 2,
+            "size": 81,
+            "lines": 8,
+            "words": 24
+        },
+        {
+            "path": "nob.c",
+            "chunks": 1,
+            "size": 5201,
+            "lines": 154,
+            "words": 537
+        },
+        {
+            "path": "main.c",
+            "chunks": 1,
+            "size": 17281,
+            "lines": 555,
+            "words": 1954
+        },
+        {
+            "path": "assets/fonts/archeologicaps/Archeologicaps.ttf",
+            "chunks": 0,
+            "size": 208204,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/fonts/atiba/Atiba.ttf",
+            "chunks": 0,
+            "size": 17712,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/fonts/audiowide/Audiowide-Regular.ttf",
+            "chunks": 0,
+            "size": 70900,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_pawn.png",
+            "chunks": 0,
+            "size": 14209,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_pawn.png",
+            "chunks": 0,
+            "size": 13640,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_rook.png",
+            "chunks": 0,
+            "size": 20298,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_queen.png",
+            "chunks": 0,
+            "size": 30176,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_bishop.png",
+            "chunks": 0,
+            "size": 21873,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_rook.png",
+            "chunks": 0,
+            "size": 19215,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_queen.png",
+            "chunks": 0,
+            "size": 28672,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_knight.png",
+            "chunks": 0,
+            "size": 19795,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_king.png",
+            "chunks": 0,
+            "size": 29563,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_bishop.png",
+            "chunks": 0,
+            "size": 23156,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_king.png",
+            "chunks": 0,
+            "size": 31199,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_knight.png",
+            "chunks": 0,
+            "size": 20925,
+            "lines": 0,
+            "words": 0
+        }
+    ],
+    "skipped_files": [],
+    "summary": {
+        "total_files_processed": 22,
+        "total_words": 17923
+    }
+}

@@ -1,0 +1,31 @@
+# The folder containing the code you want to process
+repo_path: /home/steve/dev/ChessScorer
+
+# Where Pyragify should save the output files
+output_dir: ./output
+
+# Maximum words per output file (200,000 is a good default)
+max_words: 200000
+
+# Skip files larger than 10 MB
+max_file_size: 10485760
+
+# Files and folders to ignore
+skip_patterns:
+  - "*.log"
+  - "*.tmp"
+  - "**/raylib*" # Catches raylib files anywhere in the tree
+  - "**/.git**"
+  - ".git"
+  - "config.yaml"
+
+skip_dirs:
+  - "__pycache__"
+  - "node_modules"
+  - ".git"
+  - "build"      # Skips your C/C++ compilation build folder
+  - "raylib"     # Skips the raylib source folder if present
+
+# Set to true to see detailed progress in the terminal
+verbose: false
+
