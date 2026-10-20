@@ -1,5 +1,5 @@
 # The folder containing the code you want to process
-repo_path: /home/steve/dev/ChessScorer
+repo_path: /home/steve/Repos/ChessScorer
 
 # Where Pyragify should save the output files
 output_dir: ./output

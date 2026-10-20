@@ -68,7 +68,6 @@ typedef struct {
   Pieces pieces;
 } Kingdom;
 
-
 typedef struct {
   Font *items;
   size_t count;
@@ -80,6 +79,12 @@ typedef struct {
   size_t count;
   size_t capacity;
 } Buttons;
+
+typedef struct {
+    const char **items;
+    size_t count;
+    size_t capacity;
+} PlayerList;
 
 typedef struct {
   size_t count;
@@ -139,7 +144,7 @@ typedef struct {
   Buttons letters;
   Buttons numbers;
   Buttons actions;
-
+  PlayerList availablePlayers;
   Match match;
 } Game;
 
@@ -211,7 +216,7 @@ const char* GetPieceLetter(PieceType pt) {
     case PT_QUEEN: return "Q";
     case PT_BISHOP: return "B";
     case PT_ROOK: return "R";
-    case PT_KNIGHT: return "K";
+    case PT_KNIGHT: return "N";
     case PT_PAWN: return " ";
     default: return "";
   }
@@ -257,6 +262,16 @@ Kingdom CreateKingdom(Side side, const char* piecesName) {
   da_append(&k.pieces, CreatePiece(side, PT_KNIGHT, piecesName));
   da_append(&k.pieces, CreatePiece(side, PT_PAWN, piecesName));
   return k;
+}
+
+PlayerList CreatePlayerList() {
+  PlayerList pl = {0};
+  da_append(&pl, "Aaron");
+  da_append(&pl, "Holden");
+  da_append(&pl, "Juli");
+  da_append(&pl, "Mitchell");
+  da_append(&pl, "Steve");
+  return pl;
 }
 
 Buttons CreateLetterButtons() {
@@ -408,109 +423,326 @@ void DrawScreen_StartGame(Game *game, Vector2 mouse) {
     game->screen = SCREEN_PLAYER_SETUP; 
   }
 }
-
 void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
-  UNUSED(game);
-  UNUSED(mouse);
+    // Title header
+    DrawTextEx(game->font, "Player Setup", (Vector2){ BUTTON_MARGIN, BUTTON_MARGIN }, TITLE_FONT_SIZE, 1, WHITE);
+
+    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING;
+    float screenWidth = GetScreenWidth();
+    float screenHeight = GetScreenHeight();
+    
+    // Define column center positions at 25% and 75% of the screen width
+    float leftCenterMark = screenWidth * 0.25f;
+    float rightCenterMark = screenWidth * 0.75f;
+    float boxWidth = 200;
+
+    // Small font and text-driven compact box height
+    float nameFontSize = BUTTON_FONT_SIZE * 0.75f; 
+    Vector2 textSample = MeasureTextEx(game->font, "Tg", nameFontSize, 1);
+    float boxHeight = textSample.y + (BUTTON_PADDING * 0.4f);
+
+    // Column Headers centered at 25% and 75%
+    Vector2 whiteTitleDims = MeasureTextEx(game->font, "White Player", BUTTON_FONT_SIZE * 0.5, 1);
+    DrawTextEx(game->font, "White Player", (Vector2){ leftCenterMark - (whiteTitleDims.x / 2), startY }, BUTTON_FONT_SIZE * 0.5, 1, LIGHTGRAY);
+
+    Vector2 blackTitleDims = MeasureTextEx(game->font, "Black Player", BUTTON_FONT_SIZE * 0.5, 1);
+    DrawTextEx(game->font, "Black Player", (Vector2){ rightCenterMark - (blackTitleDims.x / 2), startY }, BUTTON_FONT_SIZE * 0.5, 1, LIGHTGRAY);
+
+    float listY = startY + (BUTTON_FONT_SIZE * 0.5) + BUTTON_PADDING * 0.4f;
+
+    // Render available players list for both columns
+    for (size_t i = 0; i < game->availablePlayers.count; ++i) {
+        const char *player = game->availablePlayers.items[i];
+        float itemY = listY + i * (boxHeight + BUTTON_PADDING * 0.2f); // Very tight vertical spacing
+
+        // --- White Player Column Item ---
+        float leftBoxX = leftCenterMark - (boxWidth / 2);
+        Rectangle whiteRec = { .x = leftBoxX, .y = itemY, .width = boxWidth, .height = boxHeight };
+        bool isWhiteSelected = (game->match.white.name && strcmp(game->match.white.name, player) == 0);
+        
+        DrawRectangleRec(whiteRec, isWhiteSelected ? PURPLE : DARKGRAY);
+        DrawRectangleLinesEx(whiteRec, 1, WHITE);
+        
+        Vector2 textDims = MeasureTextEx(game->font, player, nameFontSize, 1);
+        Vector2 textPos = { 
+            whiteRec.x + (whiteRec.width - textDims.x) / 2, 
+            whiteRec.y + (whiteRec.height - textDims.y) / 2 
+        };
+        DrawTextEx(game->font, player, textPos, nameFontSize, 1, WHITE);
+        
+        if (CheckCollisionPointRec(mouse, whiteRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            game->match.white.name = player;
+            game->match.white.side = SIDE_WHITE;
+        }
+
+        // --- Black Player Column Item ---
+        float rightBoxX = rightCenterMark - (boxWidth / 2);
+        Rectangle blackRec = { .x = rightBoxX, .y = itemY, .width = boxWidth, .height = boxHeight };
+        bool isBlackSelected = (game->match.black.name && strcmp(game->match.black.name, player) == 0);
+        
+        DrawRectangleRec(blackRec, isBlackSelected ? PURPLE : DARKGRAY);
+        DrawRectangleLinesEx(blackRec, 1, WHITE);
+        
+        Vector2 blackTextDims = MeasureTextEx(game->font, player, nameFontSize, 1);
+        Vector2 blackTextPos = { 
+            blackRec.x + (blackRec.width - blackTextDims.x) / 2, 
+            blackRec.y + (blackRec.height - blackTextDims.y) / 2 
+        };
+        DrawTextEx(game->font, player, blackTextPos, nameFontSize, 1, WHITE);
+        
+        if (CheckCollisionPointRec(mouse, blackRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            game->match.black.name = player;
+            game->match.black.side = SIDE_BLACK;
+        }
+    }
+
+    // Bottom Navigation Buttons (BACK and START) safely positioned above screen bottom
+    Button back = { .text = "BACK", .active = false };
+    Vector2 dims = MeasureTextEx(game->font, back.text, BUTTON_FONT_SIZE * 0.7, 1);
+    Vector2 size = { .x = dims.x + (BUTTON_PADDING * 2), .y = (BUTTON_FONT_SIZE * 0.7 + BUTTON_PADDING) };
+    
+    Button next = { .text = "START", .active = false };
+    Vector2 nextDims = MeasureTextEx(game->font, next.text, BUTTON_FONT_SIZE * 0.7, 1);
+    Vector2 nextSize = { .x = nextDims.x + (BUTTON_PADDING * 4), .y = (BUTTON_FONT_SIZE * 0.7 + BUTTON_PADDING) };
+
+    float totalWidth = size.x + BUTTON_PADDING + nextSize.x;
+    float startX = screenWidth - totalWidth - BUTTON_MARGIN;
+    float buttonY = screenHeight - size.y - BUTTON_MARGIN;
+
+    // Back Button
+    Rectangle recBack = { .x = startX, .y = buttonY, .width = size.x, .height = size.y };
+    DrawRectangleRec(recBack, DARKGRAY);
+    DrawRectangleLinesEx(recBack, 1, WHITE);
+    DrawTextEx(game->font, back.text, (Vector2){ recBack.x + BUTTON_PADDING, recBack.y + BUTTON_PADDING / 2 }, BUTTON_FONT_SIZE * 0.7, 1, WHITE);
+    if (CheckCollisionPointRec(mouse, recBack) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->screen = SCREEN_START_GAME;
+    }
+
+    // Next/Start Button
+    Rectangle recNext = { .x = recBack.x + recBack.width + BUTTON_PADDING, .y = buttonY, .width = nextSize.x, .height = nextSize.y };
+    DrawRectangleRec(recNext, GREEN);
+    DrawRectangleLinesEx(recNext, 1, WHITE);
+    DrawTextEx(game->font, next.text, (Vector2){ recNext.x + BUTTON_PADDING * 2, recNext.y + BUTTON_PADDING / 2 }, BUTTON_FONT_SIZE * 0.7, 1, WHITE);
+    if (CheckCollisionPointRec(mouse, recNext) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->screen = SCREEN_MOVES_LIST;
+    }
 }
 
+void DrawScreen_MovesList(Game *game, Vector2 mouse) {
+    DrawTextEx(game->font, "Match Moves List", (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.8f, 1, WHITE);
+
+    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING;
+    float currentY = startY;
+
+    // Iterate through fullmoves and format as "1. e4, d3"
+    for (size_t i = 0; i < game->match.moves.count; ++i) {
+        Fullmove *fm = &game->match.moves.items[i];
+        
+        // Format White's move string (Piece + Capture + File + Rank + Suffix)
+        const char *wPiece = GetPieceLetter(fm->white.piece.pt);
+        const char *wCap = fm->white.capture ? "x" : "";
+        const char *wFile = fm->white.file ? fm->white.file : "";
+        const char *wRank = fm->white.rank ? fm->white.rank : "";
+        const char *wSuffix = fm->white.check ? "+" : (fm->white.checkmate ? "#" : "");
+        
+        char whiteMoveBuf[128];
+        snprintf(whiteMoveBuf, sizeof(whiteMoveBuf), "%s%s%s%s%s", wPiece, wCap, wFile, wRank, wSuffix);
+
+        // Format Black's move string (if submitted)
+        char blackMoveBuf[128] = "";
+        if (fm->black.file && strlen(fm->black.file) > 0) {
+            const char *bPiece = GetPieceLetter(fm->black.piece.pt);
+            const char *bCap = fm->black.capture ? "x" : "";
+            const char *bFile = fm->black.file ? fm->black.file : "";
+            const char *bRank = fm->black.rank ? fm->black.rank : "";
+            const char *bSuffix = fm->black.check ? "+" : (fm->black.checkmate ? "#" : "");
+            
+            snprintf(blackMoveBuf, sizeof(blackMoveBuf), ", %s%s%s%s%s", bPiece, bCap, bFile, bRank, bSuffix);
+        }
+
+        // Increased buffer size to 512 bytes to prevent truncation warnings
+        char rowBuf[512];
+        snprintf(rowBuf, sizeof(rowBuf), "%zu. %s%s", i + 1, whiteMoveBuf, blackMoveBuf);
+
+        DrawTextEx(game->font, rowBuf, (Vector2){BUTTON_MARGIN * 2, currentY}, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+        
+        currentY += BUTTON_FONT_SIZE * 0.8f;
+    }
+
+    // "Move" button to transition back to SCREEN_MOVE_SELECTION
+    const char *btnText = "Move";
+    Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
+
+    // Width and height of the button
+    float btnWidth = dims.x + BUTTON_PADDING * 4;
+    float btnHeight = BUTTON_DIM_Y;
+
+    Rectangle moveRec = {
+        // Shift left by adding an extra offset (e.g., 60 pixels) alongside your right margin/padding
+        .x = GetScreenWidth() - btnWidth - (BUTTON_PADDING * 4) - 5,
+
+        // Shift up by subtracting an extra offset (e.g., 60 pixels) from the bottom
+        .y = GetScreenHeight() - btnHeight - (BUTTON_PADDING * 2) - 5,
+
+        .width = btnWidth,
+        .height = btnHeight
+    };
+
+    DrawRectangleRec(moveRec, BLUE);
+    DrawTextEx(game->font, btnText, (Vector2){moveRec.x + BUTTON_PADDING * 2, moveRec.y + BUTTON_PADDING / 2}, BUTTON_FONT_SIZE, 1, WHITE);
+
+    if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->screen = SCREEN_MOVE_SELECTION;
+    }
+}
 void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
-  int title_bottom = DrawTitle(&game->turn, game->font, mouse);
-  
-  Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom+BUTTON_PADDING};
-  
-  Kingdom *kingdom = game->turn == SIDE_WHITE ? &game->white : &game->black;
-  DrawKingdom(kingdom, &rowPos, mouse, &game->activePiece);
-  
-  int bottom = rowPos.y;
-  rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6;
-  rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y);
-  DrawButtonsRow(game->actions, &rowPos, game->font, mouse, &game->activeAction); 
-  
-  rowPos.y = bottom;
-  
-  rowPos.x = BUTTON_MARGIN;
-  rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN);
-  DrawButtonsRow(game->letters, &rowPos, game->font, mouse, &game->activeLetter);
-  
-  rowPos.x = BUTTON_MARGIN;
-  rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN);
-  DrawButtonsRow(game->numbers, &rowPos, game->font, mouse, &game->activeNumber);
-
-  const char* pieceText = game->activePiece ? GetPieceLetter(game->activePiece->pt) : " ";
-  const char* letterText = game->activeLetter ? game->activeLetter->text : " ";
-  const char* numberText = game->activeNumber ? game->activeNumber->text : " ";
-  const char* actionText = game->activeAction ? game->activeAction->text : "";
-  const char* move = temp_sprintf("Move: %s%s%s%s%s%s", 
-      (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", 
-      pieceText, 
-      (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "",
-      letterText, 
-      numberText,
-      ""); 
-  DrawTextEx(game->font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
-
-  Button reset = { .text = "RESET", .active = false };
-  Vector2 dims = MeasureTextEx(game->font, reset.text, BUTTON_FONT_SIZE*0.8, 1);
-  Vector2 size = { .x = dims.x + (BUTTON_PADDING*2), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
-  Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
-  DrawRectangleRec(rec, RED);
-  DrawTextEx(game->font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
-  if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    if (game->activePiece) game->activePiece->active = false;
-    game->activePiece = NULL;
-    if (game->activeAction) game->activeAction->active = false;
-    game->activeAction = NULL;
-    if (game->activeLetter) game->activeLetter->active = false;
-    game->activeLetter = NULL;
-    if (game->activeNumber) game->activeNumber->active = false;
-    game->activeNumber = NULL; 
-  }
-
-  Button submit = { .text = "SUBMIT", .active = false };
-  dims = MeasureTextEx(game->font, submit.text, BUTTON_FONT_SIZE*0.8, 1);
-  size = (Vector2){ .x = dims.x + (BUTTON_PADDING*4), .y = (BUTTON_FONT_SIZE*0.8+BUTTON_PADDING) };
-  rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
-  DrawRectangleRec(rec, GREEN);
-  DrawTextEx(game->font, submit.text, (Vector2){rec.x+BUTTON_PADDING*2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE);
-  if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    // TODO: record the move
+    // Determine the current player and side text
+    const char *playerName = (game->turn == SIDE_WHITE) ? game->match.white.name : game->match.black.name;
+    if (!playerName) playerName = "Unknown";
+    const char *sideName = (game->turn == SIDE_WHITE) ? "White" : "Black";
     
-    game->turn = game->turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+    // Create the header text string
+    const char *headerText = temp_sprintf("Player: %s (%s)", playerName, sideName);
+    Vector2 textDims = MeasureTextEx(game->font, headerText, TITLE_FONT_SIZE, 1);
     
-    if (game->activePiece) game->activePiece->active = false;
-    game->activePiece = NULL;
-    if (game->activeAction) game->activeAction->active = false;
-    game->activeAction = NULL;
-    if (game->activeLetter) game->activeLetter->active = false;
-    game->activeLetter = NULL;
-    if (game->activeNumber) game->activeNumber->active = false;
-    game->activeNumber = NULL; 
-  }
+    int title_bottom = (TITLE_FONT_SIZE + (TITLE_Y_PADDING * 2));
+    Rectangle headerRec = { .x = 0, .y = 0, .width = GetScreenWidth(), .height = title_bottom };
+    
+    // Draw background and header text (clickable to switch turns if desired, matching original behavior)
+    DrawRectangleRec(headerRec, DARKGRAY);
+    DrawLine(0, title_bottom, GetScreenWidth(), title_bottom, WHITE);
+    DrawTextEx(game->font, headerText, (Vector2){ (GetScreenWidth() / 2.0f) - (textDims.x / 2.0f), TITLE_Y_PADDING }, TITLE_FONT_SIZE, 1, WHITE);
+
+    // Allow clicking the header to toggle turns, just like the old White/Black split title
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, headerRec)) {
+        game->turn = (game->turn == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
+        if (game->activePiece) game->activePiece->active = false;
+        game->activePiece = NULL;
+        if (game->activeAction) game->activeAction->active = false;
+        game->activeAction = NULL;
+        if (game->activeLetter) game->activeLetter->active = false;
+        game->activeLetter = NULL;
+        if (game->activeNumber) game->activeNumber->active = false;
+        game->activeNumber = NULL;
+    }
+
+    Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom + BUTTON_PADDING};
+    Kingdom *kingdom = game->turn == SIDE_WHITE ? &game->white : &game->black; 
+    DrawKingdom(kingdom, &rowPos, mouse, &game->activePiece);
+
+    int bottom = rowPos.y; 
+    rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6; 
+    rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y); 
+    DrawButtonsRow(game->actions, &rowPos, game->font, mouse, &game->activeAction);
+
+    rowPos.y = bottom;
+    rowPos.x = BUTTON_MARGIN; 
+    rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN); 
+    DrawButtonsRow(game->letters, &rowPos, game->font, mouse, &game->activeLetter);
+
+    rowPos.x = BUTTON_MARGIN; 
+    rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN); 
+    DrawButtonsRow(game->numbers, &rowPos, game->font, mouse, &game->activeNumber);
+
+    const char* pieceText = game->activePiece ? GetPieceLetter(game->activePiece->pt) : " "; 
+    const char* letterText = game->activeLetter ? game->activeLetter->text : " "; 
+    const char* numberText = game->activeNumber ? game->activeNumber->text : " "; 
+    const char* actionText = game->activeAction ? game->activeAction->text : ""; 
+    const char* move = temp_sprintf("Move: %s%s%s%s%s%s", (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", pieceText, (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "", letterText, numberText, ""); 
+    DrawTextEx(game->font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
+
+    Button reset = { .text = "RESET", .active = false }; 
+    Vector2 dims = MeasureTextEx(game->font, reset.text, BUTTON_FONT_SIZE * 0.8, 1);
+    Vector2 size = { .x = dims.x + (BUTTON_PADDING * 2), .y = (BUTTON_FONT_SIZE * 0.8 + BUTTON_PADDING) };
+    Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+    DrawRectangleRec(rec, RED);
+    DrawTextEx(game->font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE * 0.8, 1, WHITE); 
+    
+    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { 
+        if (game->activePiece) game->activePiece->active = false; 
+        game->activePiece = NULL; 
+        if (game->activeAction) game->activeAction->active = false; 
+        game->activeAction = NULL; 
+        if (game->activeLetter) game->activeLetter->active = false; 
+        game->activeLetter = NULL; 
+        if (game->activeNumber) game->activeNumber->active = false; 
+        game->activeNumber = NULL; 
+    }
+    
+    Button submit = { .text = "SUBMIT", .active = false }; 
+    dims = MeasureTextEx(game->font, submit.text, BUTTON_FONT_SIZE * 0.8, 1);
+    size = (Vector2){ .x = dims.x + (BUTTON_PADDING * 4), .y = (BUTTON_FONT_SIZE * 0.8 + BUTTON_PADDING) };
+    rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+    DrawRectangleRec(rec, GREEN);
+    DrawTextEx(game->font, submit.text, (Vector2){rec.x+BUTTON_PADDING* 2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE); 
+    
+    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { 
+        // 1. Construct PGN move components
+        const char *pieceLetter = game->activePiece ? GetPieceLetter(game->activePiece->pt) : "";
+        const char *capStr = (game->activeAction && streq(game->activeAction->text, "x")) ? "x" : "";
+        const char *fileStr = game->activeLetter ? game->activeLetter->text : "";
+        const char *rankStr = game->activeNumber ? game->activeNumber->text : "";
+        const char *suffixStr = (game->activeAction && streq(game->activeAction->text, "+")) ? "+" : 
+                                ((game->activeAction && streq(game->activeAction->text, "#")) ? "#" : "");
+        
+        const char *pgnMove = temp_sprintf("%s%s%s%s%s", pieceLetter, capStr, fileStr, rankStr, suffixStr);
+
+        // 2. Populate Ply record
+        Ply ply = {0};
+        ply.piece = game->activePiece ? *game->activePiece : (Piece){0};
+        ply.file = fileStr;
+        ply.rank = rankStr;
+        ply.capture = (game->activeAction && streq(game->activeAction->text, "x"));
+        ply.check = (game->activeAction && streq(game->activeAction->text, "+"));
+        ply.checkmate = (game->activeAction && streq(game->activeAction->text, "#"));
+        ply.timestamp = timestamp();
+
+        // 3. Insert or update Fullmove pairs
+        if (game->turn == SIDE_WHITE) {
+            Fullmove fm = {0};
+            fm.count = game->match.moves.count + 1;
+            fm.white = ply;
+            da_append(&game->match.moves, fm);
+        } else {
+            if (game->match.moves.count > 0) {
+                game->match.moves.items[game->match.moves.count - 1].black = ply;
+            }
+        }
+
+        // 4. Log move to terminal using nob_log
+        Player *currentPlayer = (game->turn == SIDE_WHITE) ? &game->match.white : &game->match.black;
+        const char *playerName = currentPlayer->name ? currentPlayer->name : GetSideName(game->turn);
+        nob_log(NOB_INFO, "Move recorded [%s (%s)]: %s", playerName, GetSideName(game->turn), pgnMove);
+
+        // 5. Switch turn, clear inputs, and transition to moves list screen
+        game->turn = game->turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+
+        if (game->activePiece) game->activePiece->active = false;
+        game->activePiece = NULL;
+        if (game->activeAction) game->activeAction->active = false;
+        game->activeAction = NULL;
+        if (game->activeLetter) game->activeLetter->active = false;
+        game->activeLetter = NULL;
+        if (game->activeNumber) game->activeNumber->active = false;
+        game->activeNumber = NULL; 
+
+        game->screen = SCREEN_MOVES_LIST;
+    }
 }
-
 int main(void)
 {
       // 1. Initialize with temporary values so we can probe the hardware
     InitWindow(800, 480, "Chess Score Keeper");
-
-    if (false) {
-      // 2. Query the physical monitor's current resolution dimensions
-      int monitor = GetCurrentMonitor();
-      int screenWidth = GetMonitorWidth(monitor);
-      int screenHeight = GetMonitorHeight(monitor);
-
-      // 3. Resize the window buffer to match your screen perfectly
-      SetWindowSize(screenWidth, screenHeight);
-
-      // 4. Toggle the hardware fullscreen state flags
-      ToggleFullscreen();
-
-      if (!IsWindowReady()) {
-          fprintf(stderr, "ERROR: Raylib window context failed to open.\n");
-          return 1;
-      }
-    }
+#ifdef PI_TARGET
+    // Query display size and set fullscreen specifically for the Pi
+    int monitor = GetCurrentMonitor();
+    int monitorWidth = GetMonitorWidth(monitor);
+    int monitorHeight = GetMonitorHeight(monitor);
+    
+    // If you use a windowed fullscreen or toggle fullscreen:
+    SetWindowSize(monitorWidth, monitorHeight);
+    ToggleFullscreen(); // or InitWindow with these dimensions
+#endif
 
     SetTargetFPS(60);
 
@@ -530,6 +762,7 @@ int main(void)
     game.letters = CreateLetterButtons();
     game.numbers = CreateNumberButtons();
     game.actions = CreateActionButtons();
+    game.availablePlayers = CreatePlayerList();
     game.match = (Match){0};
 
     while (!WindowShouldClose()) {
@@ -541,7 +774,7 @@ int main(void)
         switch (game.screen) {
           case SCREEN_START_GAME: DrawScreen_StartGame(&game, mouse); break;
           case SCREEN_PLAYER_SETUP: DrawScreen_PlayerSetup(&game, mouse); break;
-          case SCREEN_MOVES_LIST: break;
+          case SCREEN_MOVES_LIST: DrawScreen_MovesList(&game, mouse); break;
           case SCREEN_MOVE_SELECTION: DrawScreen_MoveSelection(&game, mouse); break;
           default: nob_log(ERROR, "Unknown screen state: %s", GetScreenStateText(game.screen)); 
         } 

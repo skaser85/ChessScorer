@@ -62,14 +62,12 @@ int main(int argc, char **argv)
     // 1. Core compiler selection
     if (cross) {
         cmd_append(&cmd, "aarch64-linux-gnu-gcc");
+        // Use a strict generic baseline instead of specific CPU microarchitecture flags
+        cmd_append(&cmd, "-march=armv8-a");
+        cmd_append(&cmd, "-mtune=generic");
     } else {
         cmd_append(&cmd, "cc");
     }
-
-    cmd_append(&cmd, "-Wall");
-    cmd_append(&cmd, "-Wextra");
-    cmd_append(&cmd, "-ggdb");
-
     // 2. Adjust target directories and output filenames
     if (cross) {
         cmd_append(&cmd, "-I./raylib-6.0_linux_arm64/include/");

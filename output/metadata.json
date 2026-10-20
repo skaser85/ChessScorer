@@ -15,18 +15,32 @@
             "words": 11248
         },
         {
-            "path": "main_pi",
-            "chunks": 0,
-            "size": 1221336,
-            "lines": 0,
-            "words": 0
-        },
-        {
             "path": "flag.h",
             "chunks": 1,
             "size": 35973,
             "lines": 1007,
             "words": 3990
+        },
+        {
+            "path": "nob.c",
+            "chunks": 1,
+            "size": 5281,
+            "lines": 152,
+            "words": 547
+        },
+        {
+            "path": "main.c",
+            "chunks": 1,
+            "size": 29545,
+            "lines": 779,
+            "words": 3305
+        },
+        {
+            "path": "main_pi",
+            "chunks": 0,
+            "size": 1196680,
+            "lines": 0,
+            "words": 0
         },
         {
             "path": "README.md",
@@ -36,18 +50,11 @@
             "words": 24
         },
         {
-            "path": "nob.c",
-            "chunks": 1,
-            "size": 5201,
-            "lines": 154,
-            "words": 537
-        },
-        {
-            "path": "main.c",
-            "chunks": 1,
-            "size": 17281,
-            "lines": 555,
-            "words": 1954
+            "path": "assets/fonts/audiowide/Audiowide-Regular.ttf",
+            "chunks": 0,
+            "size": 70900,
+            "lines": 0,
+            "words": 0
         },
         {
             "path": "assets/fonts/archeologicaps/Archeologicaps.ttf",
@@ -64,23 +71,9 @@
             "words": 0
         },
         {
-            "path": "assets/fonts/audiowide/Audiowide-Regular.ttf",
+            "path": "assets/pieces/moxica/white_queen.png",
             "chunks": 0,
-            "size": 70900,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/white_pawn.png",
-            "chunks": 0,
-            "size": 14209,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/black_pawn.png",
-            "chunks": 0,
-            "size": 13640,
+            "size": 30176,
             "lines": 0,
             "words": 0
         },
@@ -92,16 +85,30 @@
             "words": 0
         },
         {
-            "path": "assets/pieces/moxica/white_queen.png",
+            "path": "assets/pieces/moxica/white_pawn.png",
             "chunks": 0,
-            "size": 30176,
+            "size": 14209,
             "lines": 0,
             "words": 0
         },
         {
-            "path": "assets/pieces/moxica/black_bishop.png",
+            "path": "assets/pieces/moxica/black_knight.png",
             "chunks": 0,
-            "size": 21873,
+            "size": 19795,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/white_bishop.png",
+            "chunks": 0,
+            "size": 23156,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_pawn.png",
+            "chunks": 0,
+            "size": 13640,
             "lines": 0,
             "words": 0
         },
@@ -120,9 +127,16 @@
             "words": 0
         },
         {
-            "path": "assets/pieces/moxica/black_knight.png",
+            "path": "assets/pieces/moxica/white_knight.png",
             "chunks": 0,
-            "size": 19795,
+            "size": 20925,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/pieces/moxica/black_bishop.png",
+            "chunks": 0,
+            "size": 21873,
             "lines": 0,
             "words": 0
         },
@@ -134,23 +148,9 @@
             "words": 0
         },
         {
-            "path": "assets/pieces/moxica/white_bishop.png",
-            "chunks": 0,
-            "size": 23156,
-            "lines": 0,
-            "words": 0
-        },
-        {
             "path": "assets/pieces/moxica/white_king.png",
             "chunks": 0,
             "size": 31199,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/white_knight.png",
-            "chunks": 0,
-            "size": 20925,
             "lines": 0,
             "words": 0
         }
@@ -158,6 +158,6 @@
     "skipped_files": [],
     "summary": {
         "total_files_processed": 22,
-        "total_words": 17923
+        "total_words": 19284
     }
 }
