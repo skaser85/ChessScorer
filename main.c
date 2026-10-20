@@ -132,6 +132,7 @@ typedef struct {
 
 typedef struct {
   Font font;
+  Font movesListFont;
   Kingdom white;
   Kingdom black;
   Side turn;
@@ -185,6 +186,8 @@ Fonts LoadFonts() {
   f = LoadFontEx(FONTS_DIR"/atiba/Atiba.ttf", TITLE_FONT_SIZE, NULL, 0);
   da_append(&fonts, f);
   f = LoadFontEx(FONTS_DIR"/audiowide/Audiowide-Regular.ttf", TITLE_FONT_SIZE, NULL, 0);
+  da_append(&fonts, f);
+  f = LoadFontEx(FONTS_DIR"/semi-coder/Semi-Coder-Regular.otf", TITLE_FONT_SIZE, NULL, 0);
   da_append(&fonts, f);
   return fonts;
 }
@@ -528,8 +531,8 @@ void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
     }
 }
 
-void DrawScreen_MovesList(Game *game, Vector2 mouse) {
-    DrawTextEx(game->font, "Match Moves List", (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.8f, 1, WHITE);
+/*void DrawScreen_MovesList(Game *game, Vector2 mouse) {
+    DrawTextEx(game->font, temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK") , (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.8f, 1, WHITE);
 
     float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING;
     float currentY = startY;
@@ -566,9 +569,15 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
 
         DrawTextEx(game->font, rowBuf, (Vector2){BUTTON_MARGIN * 2, currentY}, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
         
-        currentY += BUTTON_FONT_SIZE * 0.8f;
+        currentY += BUTTON_FONT_SIZE * 0.5f;
     }
 
+    if (game->turn == SIDE_WHITE) {
+      char rowBuf[512];
+      snprintf(rowBuf, sizeof(rowBuf), "%zu. ", game->match.moves.count + 1); 
+      DrawTextEx(game->font, rowBuf, (Vector2){BUTTON_MARGIN * 2, currentY}, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+    }
+    
     // "Move" button to transition back to SCREEN_MOVE_SELECTION
     const char *btnText = "Move";
     Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
@@ -594,6 +603,60 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
     if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->screen = SCREEN_MOVE_SELECTION;
     }
+}*/
+void DrawScreen_MovesList(Game *game, Vector2 mouse) {
+    DrawTextEx(game->font, temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK") , (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.6f, 1, WHITE);
+    
+    // "Move" button to transition back to SCREEN_MOVE_SELECTION
+    const char *btnText = "Move";
+    Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
+
+    // Width and height of the button
+    float btnWidth = dims.x + BUTTON_PADDING * 2;
+    float btnHeight = BUTTON_DIM_Y*0.75;
+
+    Rectangle moveRec = {
+        .x = GetScreenWidth() - btnWidth - (BUTTON_PADDING * 4) - 5,
+        .y = BUTTON_PADDING - 5,
+        .width = btnWidth,
+        .height = btnHeight
+    };
+    
+    DrawRectangleRec(moveRec, BLUE);
+    DrawTextEx(game->font, btnText, (Vector2){moveRec.x + BUTTON_PADDING, moveRec.y + BUTTON_PADDING}, BUTTON_FONT_SIZE, 1, WHITE);
+
+    if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->screen = SCREEN_MOVE_SELECTION;
+    }
+    
+    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING/2;
+    float currentY = startY;
+
+    float fullWidth = GetScreenWidth()*0.95;
+    float fullHeight = GetScreenHeight() - startY - BUTTON_PADDING;
+    float startX = (GetScreenWidth()-fullWidth)/2;
+    float currentX = startX;
+    size_t colCount = 3;
+    float colWidth = (fullWidth / colCount) - 5;
+    size_t n = 0;
+    for (size_t i = 0; i < colCount; ++i) {
+      //Rectangle rec = { .x = currentX, .y = currentY, .width = colWidth, .height = fullHeight };
+      //DrawRectangleLinesEx(rec, 3, GREEN);
+      for (n; n < 14*(i+1); ++n) {
+        size_t num = n+1;
+        if (num > 9) {
+          DrawTextEx(game->movesListFont, temp_sprintf("%ld.", n+1), (Vector2){ currentX + 2, currentY}, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
+        } else { 
+          DrawTextEx(game->movesListFont, temp_sprintf("0%ld.", n+1), (Vector2){ currentX + 2, currentY}, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
+        }
+        currentY += BUTTON_FONT_SIZE*0.5;
+      }
+      currentX += colWidth + 5;
+      currentY = startY;
+    }
+
+
+    
 }
 void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
     // Determine the current player and side text
@@ -750,6 +813,7 @@ int main(void)
     
     Game game = {0};
     game.font = fonts.items[2];
+    game.movesListFont = fonts.items[3];
     game.piecesName = "moxica";
     game.white = CreateKingdom(SIDE_WHITE, game.piecesName);
     game.black = CreateKingdom(SIDE_BLACK, game.piecesName);
