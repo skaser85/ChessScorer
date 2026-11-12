@@ -1,163 +1,143 @@
 {
     "processed_files": [
         {
-            "path": "LICENSE",
+            "path": "codebase.txt",
             "chunks": 1,
-            "size": 1074,
-            "lines": 20,
-            "words": 170
-        },
-        {
-            "path": "nob.h",
-            "chunks": 1,
-            "size": 106192,
-            "lines": 2873,
-            "words": 11248
-        },
-        {
-            "path": "flag.h",
-            "chunks": 1,
-            "size": 35973,
-            "lines": 1007,
-            "words": 3990
-        },
-        {
-            "path": "nob.c",
-            "chunks": 1,
-            "size": 5281,
-            "lines": 152,
-            "words": 547
+            "size": 178408,
+            "lines": 4853,
+            "words": 19288
         },
         {
             "path": "main.c",
             "chunks": 1,
-            "size": 29545,
-            "lines": 779,
-            "words": 3305
+            "size": 33970,
+            "lines": 882,
+            "words": 3832
+        },
+        {
+            "path": "output/hashes.json",
+            "chunks": 1,
+            "size": 1563,
+            "lines": 24,
+            "words": 49
+        },
+        {
+            "path": "output/metadata.json",
+            "chunks": 1,
+            "size": 3934,
+            "lines": 163,
+            "words": 281
+        },
+        {
+            "path": "assets/fonts/semi-coder/Semi-Coder-Regular.otf",
+            "chunks": 0,
+            "size": 83940,
+            "lines": 0,
+            "words": 0
+        },
+        {
+            "path": "assets/fonts/semi-coder/OFL.txt",
+            "chunks": 1,
+            "size": 4473,
+            "lines": 95,
+            "words": 678
+        },
+        {
+            "path": "output/remaining/chunk_0.txt",
+            "chunks": 1,
+            "size": 178371,
+            "lines": 4853,
+            "words": 19287
+        }
+    ],
+    "skipped_files": [
+        {
+            "path": "LICENSE",
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "nob.h",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "main_pi",
-            "chunks": 0,
-            "size": 1196680,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "flag.h",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "README.md",
-            "chunks": 2,
-            "size": 81,
-            "lines": 8,
-            "words": 24
+            "reason": "Unchanged file (hash match)"
         },
         {
-            "path": "assets/fonts/audiowide/Audiowide-Regular.ttf",
-            "chunks": 0,
-            "size": 70900,
-            "lines": 0,
-            "words": 0
+            "path": "nob.c",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/fonts/archeologicaps/Archeologicaps.ttf",
-            "chunks": 0,
-            "size": 208204,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/fonts/atiba/Atiba.ttf",
-            "chunks": 0,
-            "size": 17712,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
         },
         {
-            "path": "assets/pieces/moxica/white_queen.png",
-            "chunks": 0,
-            "size": 30176,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/white_rook.png",
-            "chunks": 0,
-            "size": 20298,
-            "lines": 0,
-            "words": 0
+            "path": "assets/fonts/audiowide/Audiowide-Regular.ttf",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/pieces/moxica/white_pawn.png",
-            "chunks": 0,
-            "size": 14209,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/black_knight.png",
-            "chunks": 0,
-            "size": 19795,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/white_bishop.png",
-            "chunks": 0,
-            "size": 23156,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/pieces/moxica/black_pawn.png",
-            "chunks": 0,
-            "size": 13640,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
         },
         {
-            "path": "assets/pieces/moxica/black_rook.png",
-            "chunks": 0,
-            "size": 19215,
-            "lines": 0,
-            "words": 0
+            "path": "assets/pieces/moxica/white_rook.png",
+            "reason": "Unchanged file (hash match)"
         },
         {
-            "path": "assets/pieces/moxica/black_queen.png",
-            "chunks": 0,
-            "size": 28672,
-            "lines": 0,
-            "words": 0
-        },
-        {
-            "path": "assets/pieces/moxica/white_knight.png",
-            "chunks": 0,
-            "size": 20925,
-            "lines": 0,
-            "words": 0
+            "path": "assets/pieces/moxica/white_queen.png",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/pieces/moxica/black_bishop.png",
-            "chunks": 0,
-            "size": 21873,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "assets/pieces/moxica/black_rook.png",
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "assets/pieces/moxica/black_queen.png",
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "assets/pieces/moxica/black_knight.png",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/pieces/moxica/black_king.png",
-            "chunks": 0,
-            "size": 29563,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "assets/pieces/moxica/white_bishop.png",
+            "reason": "Unchanged file (hash match)"
         },
         {
             "path": "assets/pieces/moxica/white_king.png",
-            "chunks": 0,
-            "size": 31199,
-            "lines": 0,
-            "words": 0
+            "reason": "Unchanged file (hash match)"
+        },
+        {
+            "path": "assets/pieces/moxica/white_knight.png",
+            "reason": "Unchanged file (hash match)"
         }
     ],
-    "skipped_files": [],
     "summary": {
-        "total_files_processed": 22,
-        "total_words": 19284
+        "total_files_processed": 7,
+        "total_words": 43415
     }
 }

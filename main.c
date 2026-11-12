@@ -147,6 +147,7 @@ typedef struct {
   Buttons actions;
   PlayerList availablePlayers;
   Match match;
+  size_t movesListPage;
 } Game;
 
 struct tm *timestamp() {
@@ -421,10 +422,12 @@ void DrawScreen_StartGame(Game *game, Vector2 mouse) {
   DrawRectangleLinesEx(rec, 2, WHITE);
   DrawTextEx(game->font, "START GAME", (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING}, TITLE_FONT_SIZE, 1, WHITE);
   if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    game->match.timestamp = timestamp();
-    game->match.moves = (Fullmoves){0};
-    game->screen = SCREEN_PLAYER_SETUP; 
+      game->match.timestamp = timestamp();
+      game->match.moves = (Fullmoves){0};
+      game->movesListPage = 0;
+      game->screen = SCREEN_PLAYER_SETUP;
   }
+
 }
 void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
     // Title header
@@ -629,17 +632,37 @@ const char *GetFullMoveText(Fullmove *fm) {
     // Combine into a single temporary string (e.g., "1. e4, d3" or "1. e4")
     return temp_sprintf("%s, %s", whiteMove, blackMove);
 }
-
 void DrawScreen_MovesList(Game *game, Vector2 mouse) {
-    DrawTextEx(game->font, temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK") , (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.6f, 1, WHITE);
-    
+    const size_t colCount = 3;
+    const size_t rowsPerCol = 14;
+    const size_t movesPerPage = colCount * rowsPerCol; // 42 moves per page
+
+    // Calculate total pages (minimum 1 page even when moves.count == 0)
+    size_t totalPages = (game->match.moves.count == 0)
+        ? 1
+        : ((game->match.moves.count - 1) / movesPerPage) + 1;
+
+    // Clamp current page in case moves were reset
+    if (game->movesListPage >= totalPages) {
+        game->movesListPage = totalPages - 1;
+    }
+
+    // Header Title
+    DrawTextEx(
+        game->font,
+        temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK"),
+        (Vector2){BUTTON_MARGIN, BUTTON_MARGIN},
+        TITLE_FONT_SIZE * 0.6f,
+        1,
+        WHITE
+    );
+
     // "Move" button to transition back to SCREEN_MOVE_SELECTION
     const char *btnText = "Move";
     Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
 
-    // Width and height of the button
     float btnWidth = dims.x + BUTTON_PADDING * 2;
-    float btnHeight = BUTTON_DIM_Y*0.75;
+    float btnHeight = BUTTON_DIM_Y * 0.75f;
 
     Rectangle moveRec = {
         .x = GetScreenWidth() - btnWidth - (BUTTON_PADDING * 4) - 5,
@@ -647,42 +670,111 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
         .width = btnWidth,
         .height = btnHeight
     };
-    
+
     DrawRectangleRec(moveRec, BLUE);
     DrawTextEx(game->font, btnText, (Vector2){moveRec.x + BUTTON_PADDING, moveRec.y + BUTTON_PADDING}, BUTTON_FONT_SIZE, 1, WHITE);
 
     if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->screen = SCREEN_MOVE_SELECTION;
     }
-    
-    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING/2;
+
+    // Pagination Controls (< Prev | Page X/Y | Next >) placed to the left of the "Move" button
+    float navFontSize = BUTTON_FONT_SIZE * 0.6f;
+    float navBtnHeight = btnHeight;
+    float navPadding = BUTTON_PADDING;
+
+    const char *nextText = "Next >";
+    Vector2 nextDims = MeasureTextEx(game->font, nextText, navFontSize, 1);
+    float nextWidth = nextDims.x + navPadding * 2;
+    Rectangle nextRec = {
+        .x = moveRec.x - nextWidth - BUTTON_PADDING,
+        .y = moveRec.y,
+        .width = nextWidth,
+        .height = navBtnHeight
+    };
+
+    const char *pageText = temp_sprintf("Page %zu/%zu", game->movesListPage + 1, totalPages);
+    Vector2 pageDims = MeasureTextEx(game->font, pageText, navFontSize, 1);
+    float pageLabelX = nextRec.x - pageDims.x - BUTTON_PADDING;
+    float pageLabelY = nextRec.y + (navBtnHeight - pageDims.y) / 2.0f;
+
+    const char *prevText = "< Prev";
+    Vector2 prevDims = MeasureTextEx(game->font, prevText, navFontSize, 1);
+    float prevWidth = prevDims.x + navPadding * 2;
+    Rectangle prevRec = {
+        .x = pageLabelX - prevWidth - BUTTON_PADDING,
+        .y = moveRec.y,
+        .width = prevWidth,
+        .height = navBtnHeight
+    };
+
+    // Draw "< Prev" button
+    bool canGoPrev = (game->movesListPage > 0);
+    DrawRectangleRec(prevRec, canGoPrev ? DARKGRAY : GetColor(0x252525FF));
+    DrawRectangleLinesEx(prevRec, 1, canGoPrev ? WHITE : GRAY);
+    DrawTextEx(
+        game->font,
+        prevText,
+        (Vector2){prevRec.x + navPadding, prevRec.y + (navBtnHeight - prevDims.y) / 2.0f},
+        navFontSize,
+        1,
+        canGoPrev ? WHITE : GRAY
+    );
+    if (canGoPrev && CheckCollisionPointRec(mouse, prevRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->movesListPage--;
+    }
+
+    // Draw "Page X/Y" indicator
+    DrawTextEx(game->font, pageText, (Vector2){pageLabelX, pageLabelY}, navFontSize, 1, LIGHTGRAY);
+
+    // Draw "Next >" button
+    bool canGoNext = (game->movesListPage + 1 < totalPages);
+    DrawRectangleRec(nextRec, canGoNext ? DARKGRAY : GetColor(0x252525FF));
+    DrawRectangleLinesEx(nextRec, 1, canGoNext ? WHITE : GRAY);
+    DrawTextEx(
+        game->font,
+        nextText,
+        (Vector2){nextRec.x + navPadding, nextRec.y + (navBtnHeight - nextDims.y) / 2.0f},
+        navFontSize,
+        1,
+        canGoNext ? WHITE : GRAY
+    );
+    if (canGoNext && CheckCollisionPointRec(mouse, nextRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->movesListPage++;
+    }
+
+    // Render 3-column scoresheet grid for the active page
+    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING / 2.0f;
     float currentY = startY;
 
-    float fullWidth = GetScreenWidth()*0.95;
-    float fullHeight = GetScreenHeight() - startY - BUTTON_PADDING;
-    float startX = (GetScreenWidth()-fullWidth)/2;
+    float fullWidth = GetScreenWidth() * 0.95f;
+    float startX = (GetScreenWidth() - fullWidth) / 2.0f;
     float currentX = startX;
-    size_t colCount = 3;
-    float colWidth = (fullWidth / colCount) - 5;
-    size_t n = 0;
+    float colWidth = (fullWidth / colCount) - 5.0f;
+
+    size_t pageOffset = game->movesListPage * movesPerPage;
+    size_t slot = 0;
+
     for (size_t col = 0; col < colCount; ++col) {
-      for (n; n < 14*(col+1); ++n) {
-        size_t num = n+1;
-        const char* numText = num > 9 ? temp_sprintf("%ld.", num) : temp_sprintf("0%ld.", num);
-        Vector2 numDims = MeasureTextEx(game->movesListFont, numText, BUTTON_FONT_SIZE*0.6f, 1);
-        Vector2 numPos = { currentX + 2, currentY};
-        DrawTextEx(game->movesListFont, numText, numPos, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
-        
-       if (n < game->match.moves.count) {
-            Fullmove *fm = &game->match.moves.items[n];
-            numPos.x += numDims.x + 5;
-            DrawTextEx(game->movesListFont, GetFullMoveText(fm), numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+        for (; slot < rowsPerCol * (col + 1); ++slot) {
+            size_t moveIdx = pageOffset + slot;
+            size_t num = moveIdx + 1;
+
+            const char *numText = num > 9 ? temp_sprintf("%zu.", num) : temp_sprintf("0%zu.", num);
+            Vector2 numDims = MeasureTextEx(game->movesListFont, numText, BUTTON_FONT_SIZE * 0.6f, 1);
+            Vector2 numPos = { currentX + 2, currentY };
+            DrawTextEx(game->movesListFont, numText, numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+
+            if (moveIdx < game->match.moves.count) {
+                Fullmove *fm = &game->match.moves.items[moveIdx];
+                numPos.x += numDims.x + 5;
+                DrawTextEx(game->movesListFont, GetFullMoveText(fm), numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+            }
+
+            currentY += BUTTON_FONT_SIZE * 0.5f;
         }
-        
-       currentY += BUTTON_FONT_SIZE*0.5;
-      }
-      currentX += colWidth + 5;
-      currentY = startY;
+        currentX += colWidth + 5.0f;
+        currentY = startY;
     }
 }
 
@@ -816,7 +908,10 @@ void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
         game->activeLetter = NULL;
         if (game->activeNumber) game->activeNumber->active = false;
         game->activeNumber = NULL; 
-
+        
+        if (game->match.moves.count > 0) {
+            game->movesListPage = (game->match.moves.count - 1) / 42;
+        }
         game->screen = SCREEN_MOVES_LIST;
     }
 }
