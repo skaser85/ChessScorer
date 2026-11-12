@@ -604,6 +604,32 @@ void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
         game->screen = SCREEN_MOVE_SELECTION;
     }
 }*/
+const char *GetFullMoveText(Fullmove *fm) {
+    // Format White's move string (Piece + Capture + File + Rank + Suffix)
+    const char *wPiece = GetPieceLetter(fm->white.piece.pt);
+    const char *wCap = fm->white.capture ? "x" : "";
+    const char *wFile = fm->white.file ? fm->white.file : "";
+    const char *wRank = fm->white.rank ? fm->white.rank : "";
+    const char *wSuffix = fm->white.check ? "+" : (fm->white.checkmate ? "#" : "");
+
+    const char *whiteMove = temp_sprintf("%s%s%s%s%s", wPiece, wCap, wFile, wRank, wSuffix);
+
+    // Format Black's move string (if submitted)
+    const char *blackMove = "";
+    if (fm->black.file && strlen(fm->black.file) > 0) {
+        const char *bPiece = GetPieceLetter(fm->black.piece.pt);
+        const char *bCap = fm->black.capture ? "x" : "";
+        const char *bFile = fm->black.file ? fm->black.file : "";
+        const char *bRank = fm->black.rank ? fm->black.rank : "";
+        const char *bSuffix = fm->black.check ? "+" : (fm->black.checkmate ? "#" : "");
+
+        blackMove = temp_sprintf("%s%s%s%s%s", bPiece, bCap, bFile, bRank, bSuffix);
+    }
+
+    // Combine into a single temporary string (e.g., "1. e4, d3" or "1. e4")
+    return temp_sprintf("%s, %s", whiteMove, blackMove);
+}
+
 void DrawScreen_MovesList(Game *game, Vector2 mouse) {
     DrawTextEx(game->font, temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK") , (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.6f, 1, WHITE);
     
@@ -639,25 +665,27 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
     size_t colCount = 3;
     float colWidth = (fullWidth / colCount) - 5;
     size_t n = 0;
-    for (size_t i = 0; i < colCount; ++i) {
-      //Rectangle rec = { .x = currentX, .y = currentY, .width = colWidth, .height = fullHeight };
-      //DrawRectangleLinesEx(rec, 3, GREEN);
-      for (n; n < 14*(i+1); ++n) {
+    for (size_t col = 0; col < colCount; ++col) {
+      for (n; n < 14*(col+1); ++n) {
         size_t num = n+1;
-        if (num > 9) {
-          DrawTextEx(game->movesListFont, temp_sprintf("%ld.", n+1), (Vector2){ currentX + 2, currentY}, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
-        } else { 
-          DrawTextEx(game->movesListFont, temp_sprintf("0%ld.", n+1), (Vector2){ currentX + 2, currentY}, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
+        const char* numText = num > 9 ? temp_sprintf("%ld.", num) : temp_sprintf("0%ld.", num);
+        Vector2 numDims = MeasureTextEx(game->movesListFont, numText, BUTTON_FONT_SIZE*0.6f, 1);
+        Vector2 numPos = { currentX + 2, currentY};
+        DrawTextEx(game->movesListFont, numText, numPos, BUTTON_FONT_SIZE*0.6f, 1, WHITE);
+        
+       if (n < game->match.moves.count) {
+            Fullmove *fm = &game->match.moves.items[n];
+            numPos.x += numDims.x + 5;
+            DrawTextEx(game->movesListFont, GetFullMoveText(fm), numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
         }
-        currentY += BUTTON_FONT_SIZE*0.5;
+        
+       currentY += BUTTON_FONT_SIZE*0.5;
       }
       currentX += colWidth + 5;
       currentY = startY;
     }
-
-
-    
 }
+
 void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
     // Determine the current player and side text
     const char *playerName = (game->turn == SIDE_WHITE) ? game->match.white.name : game->match.black.name;
@@ -830,6 +858,7 @@ int main(void)
     game.match = (Match){0};
 
     while (!WindowShouldClose()) {
+        size_t mark = temp_save();
         BeginDrawing();
         ClearBackground(GetColor(0x181818FF));
         
@@ -844,6 +873,7 @@ int main(void)
         } 
         
         EndDrawing();
+        temp_rewind(mark);
     }
 
     CloseWindow();
