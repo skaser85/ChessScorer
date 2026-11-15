@@ -32,13 +32,53 @@ typedef enum {
 } Side;
 
 typedef enum {
-  PT_KING,
-  PT_QUEEN,
-  PT_BISHOP,
-  PT_ROOK,
-  PT_KNIGHT,
-  PT_PAWN
+    PT_NONE = 0,
+    PT_KING,
+    PT_QUEEN,
+    PT_BISHOP,
+    PT_ROOK,
+    PT_KNIGHT,
+    PT_PAWN
 } PieceType;
+
+size_t GetPieceValue(PieceType pt) {
+    switch (pt) {
+        case PT_KING:   return 0;
+        case PT_QUEEN:  return 9;
+        case PT_BISHOP: return 5;
+        case PT_ROOK:   return 5;
+        case PT_KNIGHT: return 3;
+        case PT_PAWN:   return 1;
+        case PT_NONE:
+        default:        return 0;
+    }
+}
+
+const char* GetPieceLetter(PieceType pt) {
+    switch (pt) {
+        case PT_KING:   return "K";
+        case PT_QUEEN:  return "Q";
+        case PT_BISHOP: return "B";
+        case PT_ROOK:   return "R";
+        case PT_KNIGHT: return "N";
+        case PT_PAWN:
+        case PT_NONE:
+        default:        return "";
+    }
+}
+
+const char* GetPieceImageName(PieceType pt) {
+    switch (pt) {
+        case PT_KING:   return "king";
+        case PT_QUEEN:  return "queen";
+        case PT_BISHOP: return "bishop";
+        case PT_ROOK:   return "rook";
+        case PT_KNIGHT: return "knight";
+        case PT_PAWN:   return "pawn";
+        case PT_NONE:
+        default:        return "";
+    }
+}
 
 typedef enum {
   SCREEN_START_GAME,
@@ -87,15 +127,19 @@ typedef struct {
 } PlayerList;
 
 typedef struct {
-  size_t count;
-  size_t fullmove;
-  Piece piece;
-  const char* rank;
-  const char* file;
-  bool capture;
-  bool check;
-  bool checkmate;
-  struct tm *timestamp;
+    size_t count;
+    size_t fullmove;
+    Piece piece;
+    const char *fromFile;   // Disambiguation file ("a"-"h", or "" if none)
+    const char *fromRank;   // Disambiguation rank ("1"-"8", or "" if none)
+    const char *rank;       // Destination rank ("1"-"8")
+    const char *file;       // Destination file ("a"-"h")
+    const char *promotion;  // "=Q", "=R", "=B", "=N", or ""
+    const char *castle;     // "O-O", "O-O-O", or ""
+    bool capture;
+    bool check;
+    bool checkmate;
+    struct tm *timestamp;
 } Ply;
 
 typedef struct {
@@ -131,23 +175,30 @@ typedef struct {
 } Match;
 
 typedef struct {
-  Font font;
-  Font movesListFont;
-  Kingdom white;
-  Kingdom black;
-  Side turn;
-  const char* piecesName;
-  Piece *activePiece;
-  Button *activeAction;
-  Button *activeLetter;
-  Button *activeNumber;
-  ScreenState screen;
-  Buttons letters;
-  Buttons numbers;
-  Buttons actions;
-  PlayerList availablePlayers;
-  Match match;
-  size_t movesListPage;
+    Font font;
+    Font movesListFont;
+    Kingdom white;
+    Kingdom black;
+    Side turn;
+    const char *piecesName;
+    Piece *activePiece;
+    Button *activeAction;
+    Button *activeLetter;
+    Button *activeNumber;
+    Button *activePromotion;
+    Button *activeCastle;
+    const char *fromFile;
+    const char *fromRank;
+    bool disambigMode;
+    ScreenState screen;
+    Buttons letters;
+    Buttons numbers;
+    Buttons actions;
+    Buttons promotions;
+    Buttons castles;
+    PlayerList availablePlayers;
+    Match match;
+    size_t movesListPage;
 } Game;
 
 struct tm *timestamp() {
@@ -193,6 +244,41 @@ Fonts LoadFonts() {
   return fonts;
 }
 
+Buttons CreatePromotionButtons() {
+    Buttons bs = {0};
+    da_append(&bs, ((Button){ .text = "=Q", .active = false }));
+    da_append(&bs, ((Button){ .text = "=R", .active = false }));
+    da_append(&bs, ((Button){ .text = "=B", .active = false }));
+    da_append(&bs, ((Button){ .text = "=N", .active = false }));
+    return bs;
+}
+
+Buttons CreateCastleButtons() {
+    Buttons bs = {0};
+    da_append(&bs, ((Button){ .text = "O-O",   .active = false }));
+    da_append(&bs, ((Button){ .text = "O-O-O", .active = false }));
+    return bs;
+}
+
+const char *FormatPlyPGN(Ply *ply) {
+    const char *suffix = ply->checkmate ? "#" : (ply->check ? "+" : "");
+
+    // Castling overrides piece/square coordinates
+    if (ply->castle && strlen(ply->castle) > 0) {
+        return temp_sprintf("%s%s", ply->castle, suffix);
+    }
+
+    const char *piece  = GetPieceLetter(ply->piece.pt);
+    const char *fFile  = ply->fromFile ? ply->fromFile : "";
+    const char *fRank  = ply->fromRank ? ply->fromRank : "";
+    const char *cap    = ply->capture ? "x" : "";
+    const char *file   = ply->file ? ply->file : "";
+    const char *rank   = ply->rank ? ply->rank : "";
+    const char *promo  = ply->promotion ? ply->promotion : "";
+
+    return temp_sprintf("%s%s%s%s%s%s%s%s", piece, fFile, fRank, cap, file, rank, promo, suffix);
+}
+
 void DrawButton(Button *b,  Font font, Vector2 pos, Vector2 dims) {
   Vector2 textDims = MeasureTextEx(font, b->text, BUTTON_FONT_SIZE, 1);
   Rectangle rec = { .x = pos.x, .y = pos.y, .width = dims.x, .height = dims.y };
@@ -200,42 +286,6 @@ void DrawButton(Button *b,  Font font, Vector2 pos, Vector2 dims) {
     DrawRectangleLinesEx(rec, 1, LIME);
   }
   DrawTextEx(font, b->text, (Vector2){(pos.x+rec.width/2)-(textDims.x/2), (pos.y+rec.height/2)-(textDims.y/2) }, BUTTON_FONT_SIZE, 1, WHITE);
-}
-
-size_t GetPieceValue(PieceType pt) {
-  switch (pt) {
-    case PT_KING: return 0;
-    case PT_QUEEN: return 9;
-    case PT_BISHOP: return 5;
-    case PT_ROOK: return 5;
-    case PT_KNIGHT: return 3;
-    case PT_PAWN: return 1;
-    default: return 0;
-  }
-}
-
-const char* GetPieceLetter(PieceType pt) {
-  switch (pt) {
-    case PT_KING: return "K";
-    case PT_QUEEN: return "Q";
-    case PT_BISHOP: return "B";
-    case PT_ROOK: return "R";
-    case PT_KNIGHT: return "N";
-    case PT_PAWN: return " ";
-    default: return "";
-  }
-}
-
-const char* GetPieceImageName(PieceType pt) {
-  switch (pt) {
-    case PT_KING: return "king";
-    case PT_QUEEN: return "queen";
-    case PT_BISHOP: return "bishop";
-    case PT_ROOK: return "rook";
-    case PT_KNIGHT: return "knight";
-    case PT_PAWN: return "pawn";
-    default: return "";
-  }
 }
 
 const char* GetSideName(Side side) {
@@ -534,104 +584,19 @@ void DrawScreen_PlayerSetup(Game *game, Vector2 mouse) {
     }
 }
 
-/*void DrawScreen_MovesList(Game *game, Vector2 mouse) {
-    DrawTextEx(game->font, temp_sprintf("Match Moves List (%s to move)", game->turn == SIDE_WHITE ? "WHITE" : "BLACK") , (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.8f, 1, WHITE);
-
-    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING;
-    float currentY = startY;
-
-    // Iterate through fullmoves and format as "1. e4, d3"
-    for (size_t i = 0; i < game->match.moves.count; ++i) {
-        Fullmove *fm = &game->match.moves.items[i];
-        
-        // Format White's move string (Piece + Capture + File + Rank + Suffix)
-        const char *wPiece = GetPieceLetter(fm->white.piece.pt);
-        const char *wCap = fm->white.capture ? "x" : "";
-        const char *wFile = fm->white.file ? fm->white.file : "";
-        const char *wRank = fm->white.rank ? fm->white.rank : "";
-        const char *wSuffix = fm->white.check ? "+" : (fm->white.checkmate ? "#" : "");
-        
-        char whiteMoveBuf[128];
-        snprintf(whiteMoveBuf, sizeof(whiteMoveBuf), "%s%s%s%s%s", wPiece, wCap, wFile, wRank, wSuffix);
-
-        // Format Black's move string (if submitted)
-        char blackMoveBuf[128] = "";
-        if (fm->black.file && strlen(fm->black.file) > 0) {
-            const char *bPiece = GetPieceLetter(fm->black.piece.pt);
-            const char *bCap = fm->black.capture ? "x" : "";
-            const char *bFile = fm->black.file ? fm->black.file : "";
-            const char *bRank = fm->black.rank ? fm->black.rank : "";
-            const char *bSuffix = fm->black.check ? "+" : (fm->black.checkmate ? "#" : "");
-            
-            snprintf(blackMoveBuf, sizeof(blackMoveBuf), ", %s%s%s%s%s", bPiece, bCap, bFile, bRank, bSuffix);
-        }
-
-        // Increased buffer size to 512 bytes to prevent truncation warnings
-        char rowBuf[512];
-        snprintf(rowBuf, sizeof(rowBuf), "%zu. %s%s", i + 1, whiteMoveBuf, blackMoveBuf);
-
-        DrawTextEx(game->font, rowBuf, (Vector2){BUTTON_MARGIN * 2, currentY}, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
-        
-        currentY += BUTTON_FONT_SIZE * 0.5f;
-    }
-
-    if (game->turn == SIDE_WHITE) {
-      char rowBuf[512];
-      snprintf(rowBuf, sizeof(rowBuf), "%zu. ", game->match.moves.count + 1); 
-      DrawTextEx(game->font, rowBuf, (Vector2){BUTTON_MARGIN * 2, currentY}, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
-    }
-    
-    // "Move" button to transition back to SCREEN_MOVE_SELECTION
-    const char *btnText = "Move";
-    Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
-
-    // Width and height of the button
-    float btnWidth = dims.x + BUTTON_PADDING * 4;
-    float btnHeight = BUTTON_DIM_Y;
-
-    Rectangle moveRec = {
-        // Shift left by adding an extra offset (e.g., 60 pixels) alongside your right margin/padding
-        .x = GetScreenWidth() - btnWidth - (BUTTON_PADDING * 4) - 5,
-
-        // Shift up by subtracting an extra offset (e.g., 60 pixels) from the bottom
-        .y = GetScreenHeight() - btnHeight - (BUTTON_PADDING * 2) - 5,
-
-        .width = btnWidth,
-        .height = btnHeight
-    };
-
-    DrawRectangleRec(moveRec, BLUE);
-    DrawTextEx(game->font, btnText, (Vector2){moveRec.x + BUTTON_PADDING * 2, moveRec.y + BUTTON_PADDING / 2}, BUTTON_FONT_SIZE, 1, WHITE);
-
-    if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        game->screen = SCREEN_MOVE_SELECTION;
-    }
-}*/
 const char *GetFullMoveText(Fullmove *fm) {
-    // Format White's move string (Piece + Capture + File + Rank + Suffix)
-    const char *wPiece = GetPieceLetter(fm->white.piece.pt);
-    const char *wCap = fm->white.capture ? "x" : "";
-    const char *wFile = fm->white.file ? fm->white.file : "";
-    const char *wRank = fm->white.rank ? fm->white.rank : "";
-    const char *wSuffix = fm->white.check ? "+" : (fm->white.checkmate ? "#" : "");
+    const char *whiteMove = FormatPlyPGN(&fm->white);
 
-    const char *whiteMove = temp_sprintf("%s%s%s%s%s", wPiece, wCap, wFile, wRank, wSuffix);
-
-    // Format Black's move string (if submitted)
     const char *blackMove = "";
-    if (fm->black.file && strlen(fm->black.file) > 0) {
-        const char *bPiece = GetPieceLetter(fm->black.piece.pt);
-        const char *bCap = fm->black.capture ? "x" : "";
-        const char *bFile = fm->black.file ? fm->black.file : "";
-        const char *bRank = fm->black.rank ? fm->black.rank : "";
-        const char *bSuffix = fm->black.check ? "+" : (fm->black.checkmate ? "#" : "");
-
-        blackMove = temp_sprintf("%s%s%s%s%s", bPiece, bCap, bFile, bRank, bSuffix);
+    bool blackMoved = (fm->black.castle && strlen(fm->black.castle) > 0) ||
+                      (fm->black.file && strlen(fm->black.file) > 0);
+    if (blackMoved) {
+        blackMove = FormatPlyPGN(&fm->black);
     }
 
-    // Combine into a single temporary string (e.g., "1. e4, d3" or "1. e4")
-    return temp_sprintf("%s, %s", whiteMove, blackMove);
+    return temp_sprintf("%7s,%7s", whiteMove, blackMove);
 }
+
 void DrawScreen_MovesList(Game *game, Vector2 mouse) {
     const size_t colCount = 3;
     const size_t rowsPerCol = 14;
@@ -657,101 +622,133 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
         WHITE
     );
 
-    // "Move" button to transition back to SCREEN_MOVE_SELECTION
+    // 1. Top-Right "Move" Button (Full Size)
     const char *btnText = "Move";
     Vector2 dims = MeasureTextEx(game->font, btnText, BUTTON_FONT_SIZE, 1);
 
-    float btnWidth = dims.x + BUTTON_PADDING * 2;
-    float btnHeight = BUTTON_DIM_Y * 0.75f;
+    float moveBtnWidth = dims.x + BUTTON_PADDING * 2;
+    float moveBtnHeight = BUTTON_DIM_Y * 0.75f;
+    float moveSidebarX = GetScreenWidth() - moveBtnWidth - BUTTON_MARGIN;
 
     Rectangle moveRec = {
-        .x = GetScreenWidth() - btnWidth - (BUTTON_PADDING * 4) - 5,
+        .x = moveSidebarX,
         .y = BUTTON_PADDING - 5,
-        .width = btnWidth,
-        .height = btnHeight
+        .width = moveBtnWidth,
+        .height = moveBtnHeight
     };
 
     DrawRectangleRec(moveRec, BLUE);
-    DrawTextEx(game->font, btnText, (Vector2){moveRec.x + BUTTON_PADDING, moveRec.y + BUTTON_PADDING}, BUTTON_FONT_SIZE, 1, WHITE);
+    DrawTextEx(
+        game->font,
+        btnText,
+        (Vector2){moveRec.x + BUTTON_PADDING, moveRec.y + (moveRec.height - dims.y) / 2.0f},
+        BUTTON_FONT_SIZE,
+        1,
+        WHITE
+    );
 
     if (CheckCollisionPointRec(mouse, moveRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->screen = SCREEN_MOVE_SELECTION;
     }
 
-    // Pagination Controls (< Prev | Page X/Y | Next >) placed to the left of the "Move" button
-    float navFontSize = BUTTON_FONT_SIZE * 0.6f;
-    float navBtnHeight = btnHeight;
-    float navPadding = BUTTON_PADDING;
+    // 2. Half-Size Vertical Pagination Strip on the Right Edge
+    float navWidth = moveBtnWidth * 0.5f;
+    float navBtnHeight = moveBtnHeight * 0.5f;
+    float navFontSize = BUTTON_FONT_SIZE * 0.35f;
+    float navSidebarX = GetScreenWidth() - navWidth - (BUTTON_MARGIN * 0.5f);
+    float currentControlY = moveRec.y + moveRec.height + BUTTON_MARGIN;
 
-    const char *nextText = "Next >";
-    Vector2 nextDims = MeasureTextEx(game->font, nextText, navFontSize, 1);
-    float nextWidth = nextDims.x + navPadding * 2;
-    Rectangle nextRec = {
-        .x = moveRec.x - nextWidth - BUTTON_PADDING,
-        .y = moveRec.y,
-        .width = nextWidth,
-        .height = navBtnHeight
-    };
-
-    const char *pageText = temp_sprintf("Page %zu/%zu", game->movesListPage + 1, totalPages);
-    Vector2 pageDims = MeasureTextEx(game->font, pageText, navFontSize, 1);
-    float pageLabelX = nextRec.x - pageDims.x - BUTTON_PADDING;
-    float pageLabelY = nextRec.y + (navBtnHeight - pageDims.y) / 2.0f;
-
-    const char *prevText = "< Prev";
+    // "PREV" Button
+    const char *prevText = "PREV";
     Vector2 prevDims = MeasureTextEx(game->font, prevText, navFontSize, 1);
-    float prevWidth = prevDims.x + navPadding * 2;
     Rectangle prevRec = {
-        .x = pageLabelX - prevWidth - BUTTON_PADDING,
-        .y = moveRec.y,
-        .width = prevWidth,
+        .x = navSidebarX,
+        .y = currentControlY,
+        .width = navWidth,
         .height = navBtnHeight
     };
 
-    // Draw "< Prev" button
     bool canGoPrev = (game->movesListPage > 0);
     DrawRectangleRec(prevRec, canGoPrev ? DARKGRAY : GetColor(0x252525FF));
     DrawRectangleLinesEx(prevRec, 1, canGoPrev ? WHITE : GRAY);
     DrawTextEx(
         game->font,
         prevText,
-        (Vector2){prevRec.x + navPadding, prevRec.y + (navBtnHeight - prevDims.y) / 2.0f},
+        (Vector2){prevRec.x + (prevRec.width - prevDims.x) / 2.0f, prevRec.y + (prevRec.height - prevDims.y) / 2.0f},
         navFontSize,
         1,
         canGoPrev ? WHITE : GRAY
     );
+
     if (canGoPrev && CheckCollisionPointRec(mouse, prevRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->movesListPage--;
     }
 
-    // Draw "Page X/Y" indicator
-    DrawTextEx(game->font, pageText, (Vector2){pageLabelX, pageLabelY}, navFontSize, 1, LIGHTGRAY);
+    currentControlY += navBtnHeight + (BUTTON_PADDING * 0.6f);
 
-    // Draw "Next >" button
+    // Page Indicator ("1/2") Centered in Compact Strip
+    const char *pageText = temp_sprintf("%zu/%zu", game->movesListPage + 1, totalPages);
+    Vector2 pageDims = MeasureTextEx(game->font, pageText, navFontSize, 1);
+    DrawTextEx(
+        game->font,
+        pageText,
+        (Vector2){navSidebarX + (navWidth - pageDims.x) / 2.0f, currentControlY},
+        navFontSize,
+        1,
+        LIGHTGRAY
+    );
+
+    currentControlY += pageDims.y + (BUTTON_PADDING * 0.6f);
+
+    // "NEXT" Button
+    const char *nextText = "NEXT";
+    Vector2 nextDims = MeasureTextEx(game->font, nextText, navFontSize, 1);
+    Rectangle nextRec = {
+        .x = navSidebarX,
+        .y = currentControlY,
+        .width = navWidth,
+        .height = navBtnHeight
+    };
+
     bool canGoNext = (game->movesListPage + 1 < totalPages);
     DrawRectangleRec(nextRec, canGoNext ? DARKGRAY : GetColor(0x252525FF));
     DrawRectangleLinesEx(nextRec, 1, canGoNext ? WHITE : GRAY);
     DrawTextEx(
         game->font,
         nextText,
-        (Vector2){nextRec.x + navPadding, nextRec.y + (navBtnHeight - nextDims.y) / 2.0f},
+        (Vector2){nextRec.x + (nextRec.width - nextDims.x) / 2.0f, nextRec.y + (nextRec.height - nextDims.y) / 2.0f},
         navFontSize,
         1,
         canGoNext ? WHITE : GRAY
     );
+
     if (canGoNext && CheckCollisionPointRec(mouse, nextRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->movesListPage++;
     }
 
-    // Render 3-column scoresheet grid for the active page
-    float startY = BUTTON_MARGIN + TITLE_FONT_SIZE + BUTTON_PADDING / 2.0f;
-    float currentY = startY;
+    // 3. 3-Column Scoresheet Grid with Dynamic Font Scaling
+    float startY = moveRec.y + moveRec.height + BUTTON_PADDING;
+    float startX = BUTTON_MARGIN;
+    float fullWidth = navSidebarX - startX - (BUTTON_MARGIN * 0.5f);
+    float fullHeight = GetScreenHeight() - startY - BUTTON_PADDING;
+    float colWidth = (fullWidth / colCount) - 6.0f;
+    float rowHeight = fullHeight / rowsPerCol;
 
-    float fullWidth = GetScreenWidth() * 0.95f;
-    float startX = (GetScreenWidth() - fullWidth) / 2.0f;
+    // Measure worst-case 19-char row ("000." + 15-char fullmove) to auto-fit column width
+    float baseFontSize = BUTTON_FONT_SIZE * 0.6f;
+    Vector2 sampleDims = MeasureTextEx(game->movesListFont, "000.exd8=Q#, O-O-O#", baseFontSize, 1);
+    float maxEntryWidth = colWidth - 8.0f;
+
+    float listFontSize = baseFontSize;
+    if (sampleDims.x > maxEntryWidth && sampleDims.x > 0.0f) {
+        listFontSize = baseFontSize * (maxEntryWidth / sampleDims.x);
+    }
+    if (listFontSize > rowHeight * 0.9f) {
+        listFontSize = rowHeight * 0.9f;
+    }
+
     float currentX = startX;
-    float colWidth = (fullWidth / colCount) - 5.0f;
-
+    float currentY = startY;
     size_t pageOffset = game->movesListPage * movesPerPage;
     size_t slot = 0;
 
@@ -760,161 +757,534 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
             size_t moveIdx = pageOffset + slot;
             size_t num = moveIdx + 1;
 
-            const char *numText = num > 9 ? temp_sprintf("%zu.", num) : temp_sprintf("0%zu.", num);
-            Vector2 numDims = MeasureTextEx(game->movesListFont, numText, BUTTON_FONT_SIZE * 0.6f, 1);
+            // Keep move prefix fixed at 4 chars ("01. " or "100.") so 15-char move text aligns cleanly
+            const char *numText = (num > 99)
+                ? temp_sprintf("%zu.", num)
+                : (num > 9 ? temp_sprintf("%zu. ", num) : temp_sprintf("0%zu. ", num));
+
+            Vector2 numDims = MeasureTextEx(game->movesListFont, numText, listFontSize, 1);
             Vector2 numPos = { currentX + 2, currentY };
-            DrawTextEx(game->movesListFont, numText, numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+            DrawTextEx(game->movesListFont, numText, numPos, listFontSize, 1, WHITE);
 
             if (moveIdx < game->match.moves.count) {
                 Fullmove *fm = &game->match.moves.items[moveIdx];
-                numPos.x += numDims.x + 5;
-                DrawTextEx(game->movesListFont, GetFullMoveText(fm), numPos, BUTTON_FONT_SIZE * 0.6f, 1, WHITE);
+                numPos.x += numDims.x + 2;
+                DrawTextEx(game->movesListFont, GetFullMoveText(fm), numPos, listFontSize, 1, WHITE);
             }
 
-            currentY += BUTTON_FONT_SIZE * 0.5f;
+            currentY += rowHeight;
         }
-        currentX += colWidth + 5.0f;
+        currentX += colWidth + 6.0f;
         currentY = startY;
     }
 }
 
+void DrawActionButtonsRow(Buttons bs, Vector2 *rowPos, Font font, Vector2 mouse) {
+    for (size_t i = 0; i < bs.count; ++i) {
+        Button *currentButton = &bs.items[i];
+        Rectangle rec = { .x = rowPos->x, .y = rowPos->y, .width = BUTTON_DIM_X, .height = BUTTON_DIM_Y };
+
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            currentButton->active = !currentButton->active;
+
+            // Keep "+" (check) and "#" (checkmate) mutually exclusive, while allowing "x" with either
+            if (currentButton->active) {
+                if (streq(currentButton->text, "+")) {
+                    for (size_t j = 0; j < bs.count; ++j) {
+                        if (streq(bs.items[j].text, "#")) bs.items[j].active = false;
+                    }
+                } else if (streq(currentButton->text, "#")) {
+                    for (size_t j = 0; j < bs.count; ++j) {
+                        if (streq(bs.items[j].text, "+")) bs.items[j].active = false;
+                    }
+                }
+            }
+        }
+
+        DrawButton(currentButton, font, *rowPos, (Vector2){BUTTON_DIM_X, BUTTON_DIM_Y});
+        rowPos->x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+    }
+}
+
+void ResetMoveSelection(Game *game) {
+    if (game->activePiece) game->activePiece->active = false;
+    game->activePiece = NULL;
+
+    for (size_t i = 0; i < game->actions.count; ++i) {
+        game->actions.items[i].active = false;
+    }
+    game->activeAction = NULL;
+
+    if (game->activeLetter) game->activeLetter->active = false;
+    game->activeLetter = NULL;
+
+    if (game->activeNumber) game->activeNumber->active = false;
+    game->activeNumber = NULL;
+
+    if (game->activePromotion) game->activePromotion->active = false;
+    game->activePromotion = NULL;
+
+    if (game->activeCastle) game->activeCastle->active = false;
+    game->activeCastle = NULL;
+
+    game->fromFile = "";
+    game->fromRank = "";
+    game->disambigMode = false;
+}
+
+void DrawToggleButton(Button *b, Font font, Rectangle rec, float fontSize, Vector2 mouse, Button **tracker) {
+    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (b->active) {
+            b->active = false;
+            if (tracker) *tracker = NULL;
+        } else {
+            if (tracker && *tracker != NULL) {
+                (*tracker)->active = false;
+            }
+            b->active = true;
+            if (tracker) *tracker = b;
+        }
+    }
+
+    DrawRectangleRec(rec, b->active ? DARKGREEN : DARKGRAY);
+    DrawRectangleLinesEx(rec, 1, b->active ? LIME : WHITE);
+    Vector2 textDims = MeasureTextEx(font, b->text, fontSize, 1);
+    DrawTextEx(
+        font,
+        b->text,
+        (Vector2){ rec.x + (rec.width - textDims.x) / 2.0f, rec.y + (rec.height - textDims.y) / 2.0f },
+        fontSize,
+        1,
+        WHITE
+    );
+}
+void DrawMoveSelectionGrid(Game *game, int title_bottom, Vector2 mouse) {
+    float rowGap = 8.0f;
+    float coordBtnHeight = 56.0f;
+    float smallFont = BUTTON_FONT_SIZE * 0.55f;
+
+    // Row 1: Pieces + Action Modifiers ("x", "+", "#")
+    Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom + 8.0f};
+    Kingdom *kingdom = game->turn == SIDE_WHITE ? &game->white : &game->black;
+    DrawKingdom(kingdom, &rowPos, mouse, &game->activePiece);
+
+    int row1Top = rowPos.y;
+    rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6;
+    rowPos.y = (row1Top + PIECE_DIM_Y) - coordBtnHeight;
+    for (size_t i = 0; i < game->actions.count; ++i) {
+        Button *currentButton = &game->actions.items[i];
+        Rectangle rec = { .x = rowPos.x, .y = rowPos.y, .width = BUTTON_DIM_X, .height = coordBtnHeight };
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            currentButton->active = !currentButton->active;
+            if (currentButton->active) {
+                if (streq(currentButton->text, "+")) {
+                    for (size_t j = 0; j < game->actions.count; ++j)
+                        if (streq(game->actions.items[j].text, "#")) game->actions.items[j].active = false;
+                } else if (streq(currentButton->text, "#")) {
+                    for (size_t j = 0; j < game->actions.count; ++j)
+                        if (streq(game->actions.items[j].text, "+")) game->actions.items[j].active = false;
+                }
+            }
+        }
+        DrawButton(currentButton, game->font, rowPos, (Vector2){BUTTON_DIM_X, coordBtnHeight});
+        rowPos.x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+    }
+
+    // Row 2: Files ("a" - "h")
+    rowPos.x = BUTTON_MARGIN;
+    rowPos.y = row1Top + PIECE_DIM_Y + rowGap;
+    for (size_t i = 0; i < game->letters.count; ++i) {
+        Button *btn = &game->letters.items[i];
+        Rectangle rec = { .x = rowPos.x, .y = rowPos.y, .width = BUTTON_DIM_X, .height = coordBtnHeight };
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (game->disambigMode) {
+                game->fromFile = streq(game->fromFile, btn->text) ? "" : btn->text;
+                game->disambigMode = false;
+            } else {
+                if (game->activeLetter) game->activeLetter->active = false;
+                btn->active = true;
+                game->activeLetter = btn;
+            }
+        }
+
+        DrawButton(btn, game->font, rowPos, (Vector2){BUTTON_DIM_X, coordBtnHeight});
+
+        // Highlight active fromFile with an inset orange border
+        if (game->fromFile && strlen(game->fromFile) > 0 && streq(game->fromFile, btn->text)) {
+            Rectangle fromHighlight = {
+                .x = rec.x + 2,
+                .y = rec.y + 2,
+                .width = rec.width - 4,
+                .height = rec.height - 4
+            };
+            DrawRectangleLinesEx(fromHighlight, 2, ORANGE);
+        }
+
+        rowPos.x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+    }
+
+    // Row 3: Ranks ("1" - "8")
+    rowPos.x = BUTTON_MARGIN;
+    rowPos.y += coordBtnHeight + rowGap;
+    for (size_t i = 0; i < game->numbers.count; ++i) {
+        Button *btn = &game->numbers.items[i];
+        Rectangle rec = { .x = rowPos.x, .y = rowPos.y, .width = BUTTON_DIM_X, .height = coordBtnHeight };
+        if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (game->disambigMode) {
+                game->fromRank = streq(game->fromRank, btn->text) ? "" : btn->text;
+                game->disambigMode = false;
+            } else {
+                if (game->activeNumber) game->activeNumber->active = false;
+                btn->active = true;
+                game->activeNumber = btn;
+            }
+        }
+
+        DrawButton(btn, game->font, rowPos, (Vector2){BUTTON_DIM_X, coordBtnHeight});
+
+        // Highlight active fromRank with an inset orange border
+        if (game->fromRank && strlen(game->fromRank) > 0 && streq(game->fromRank, btn->text)) {
+            Rectangle fromHighlight = {
+                .x = rec.x + 2,
+                .y = rec.y + 2,
+                .width = rec.width - 4,
+                .height = rec.height - 4
+            };
+            DrawRectangleLinesEx(fromHighlight, 2, ORANGE);
+        }
+
+        rowPos.x += PIECE_DIM_X + BUTTON_PADDING + BUTTON_MARGIN;
+    }
+
+    // Row 4: Promotions ("=Q".."=N") + Castling ("O-O", "O-O-O") + "FROM" Toggle
+    float modX = BUTTON_MARGIN;
+    float modY = rowPos.y + coordBtnHeight + rowGap;
+    float modHeight = 46.0f;
+    float promoWidth = BUTTON_DIM_X * 1.0f;
+
+    for (size_t i = 0; i < game->promotions.count; ++i) {
+        Rectangle pRec = { .x = modX, .y = modY, .width = promoWidth, .height = modHeight };
+        DrawToggleButton(&game->promotions.items[i], game->font, pRec, smallFont, mouse, &game->activePromotion);
+        if (game->activePromotion && game->activeCastle) {
+            game->activeCastle->active = false;
+            game->activeCastle = NULL;
+        }
+        modX += promoWidth + BUTTON_PADDING;
+    }
+
+    modX += BUTTON_MARGIN * 0.4f;
+    for (size_t i = 0; i < game->castles.count; ++i) {
+        float cWidth = (i == 0) ? BUTTON_DIM_X * 1.25f : BUTTON_DIM_X * 1.65f;
+        Rectangle cRec = { .x = modX, .y = modY, .width = cWidth, .height = modHeight };
+        DrawToggleButton(&game->castles.items[i], game->font, cRec, smallFont, mouse, &game->activeCastle);
+        if (game->activeCastle && game->activePromotion) {
+            game->activePromotion->active = false;
+            game->activePromotion = NULL;
+        }
+        modX += cWidth + BUTTON_PADDING;
+    }
+
+    modX += BUTTON_MARGIN * 0.4f;
+    float fromWidth = BUTTON_DIM_X * 1.2f;
+    Rectangle fromRec = { .x = modX, .y = modY, .width = fromWidth, .height = modHeight };
+    if (CheckCollisionPointRec(mouse, fromRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->disambigMode = !game->disambigMode;
+    }
+    DrawRectangleRec(fromRec, game->disambigMode ? ORANGE : DARKGRAY);
+    DrawRectangleLinesEx(fromRec, 1, game->disambigMode ? YELLOW : WHITE);
+    Vector2 fromDims = MeasureTextEx(game->font, "FROM", smallFont, 1);
+    DrawTextEx(
+        game->font,
+        "FROM",
+        (Vector2){ fromRec.x + (fromRec.width - fromDims.x) / 2.0f, fromRec.y + (fromRec.height - fromDims.y) / 2.0f },
+        smallFont,
+        1,
+        WHITE
+    );
+}
+
 void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
-    // Determine the current player and side text
     const char *playerName = (game->turn == SIDE_WHITE) ? game->match.white.name : game->match.black.name;
     if (!playerName) playerName = "Unknown";
     const char *sideName = (game->turn == SIDE_WHITE) ? "White" : "Black";
-    
-    // Create the header text string
+
     const char *headerText = temp_sprintf("Player: %s (%s)", playerName, sideName);
     Vector2 textDims = MeasureTextEx(game->font, headerText, TITLE_FONT_SIZE, 1);
-    
+
     int title_bottom = (TITLE_FONT_SIZE + (TITLE_Y_PADDING * 2));
     Rectangle headerRec = { .x = 0, .y = 0, .width = GetScreenWidth(), .height = title_bottom };
-    
-    // Draw background and header text (clickable to switch turns if desired, matching original behavior)
+
     DrawRectangleRec(headerRec, DARKGRAY);
     DrawLine(0, title_bottom, GetScreenWidth(), title_bottom, WHITE);
     DrawTextEx(game->font, headerText, (Vector2){ (GetScreenWidth() / 2.0f) - (textDims.x / 2.0f), TITLE_Y_PADDING }, TITLE_FONT_SIZE, 1, WHITE);
 
-    // Allow clicking the header to toggle turns, just like the old White/Black split title
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, headerRec)) {
         game->turn = (game->turn == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
-        if (game->activePiece) game->activePiece->active = false;
-        game->activePiece = NULL;
-        if (game->activeAction) game->activeAction->active = false;
-        game->activeAction = NULL;
-        if (game->activeLetter) game->activeLetter->active = false;
-        game->activeLetter = NULL;
-        if (game->activeNumber) game->activeNumber->active = false;
-        game->activeNumber = NULL;
+        ResetMoveSelection(game);
     }
 
-    Vector2 rowPos = (Vector2){BUTTON_MARGIN, title_bottom + BUTTON_PADDING};
-    Kingdom *kingdom = game->turn == SIDE_WHITE ? &game->white : &game->black; 
-    DrawKingdom(kingdom, &rowPos, mouse, &game->activePiece);
+    // Draw all 4 selection rows
+    DrawMoveSelectionGrid(game, title_bottom, mouse);
 
-    int bottom = rowPos.y; 
-    rowPos.x = (PIECE_DIM_X + BUTTON_MARGIN + BUTTON_PADDING) * 6; 
-    rowPos.y = (rowPos.y + PIECE_DIM_Y) - (BUTTON_DIM_Y); 
-    DrawButtonsRow(game->actions, &rowPos, game->font, mouse, &game->activeAction);
+    // Build temporary Ply for live preview & submission
+    Ply previewPly = {0};
+    if (game->activePiece) {
+        previewPly.piece = *game->activePiece;
+    } else if (!game->activeCastle) {
+        previewPly.piece.side = game->turn;
+        previewPly.piece.pt = PT_PAWN;
+        previewPly.piece.value = GetPieceValue(PT_PAWN);
+    }
+    previewPly.piece     = game->activePiece ? *game->activePiece : (Piece){0};
+    previewPly.fromFile  = game->fromFile ? game->fromFile : "";
+    previewPly.fromRank  = game->fromRank ? game->fromRank : "";
+    previewPly.file      = game->activeLetter ? game->activeLetter->text : "";
+    previewPly.rank      = game->activeNumber ? game->activeNumber->text : "";
+    previewPly.promotion = game->activePromotion ? game->activePromotion->text : "";
+    previewPly.castle    = game->activeCastle ? game->activeCastle->text : "";
+    previewPly.capture   = (game->actions.count > 0) ? game->actions.items[0].active : false;
+    previewPly.check     = (game->actions.count > 1) ? game->actions.items[1].active : false;
+    previewPly.checkmate = (game->actions.count > 2) ? game->actions.items[2].active : false;
 
-    rowPos.y = bottom;
-    rowPos.x = BUTTON_MARGIN; 
-    rowPos.y = (rowPos.y + PIECE_DIM_Y + BUTTON_MARGIN); 
-    DrawButtonsRow(game->letters, &rowPos, game->font, mouse, &game->activeLetter);
+    const char *pgnMove = FormatPlyPGN(&previewPly);
+    const char *moveLabel = temp_sprintf("Move: %s", pgnMove);
+    DrawTextEx(game->font, moveLabel, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE * 0.85f) }, TITLE_FONT_SIZE * 0.85f, 1, WHITE);
 
-    rowPos.x = BUTTON_MARGIN; 
-    rowPos.y = (rowPos.y + (BUTTON_DIM_Y) + BUTTON_MARGIN); 
-    DrawButtonsRow(game->numbers, &rowPos, game->font, mouse, &game->activeNumber);
-
-    const char* pieceText = game->activePiece ? GetPieceLetter(game->activePiece->pt) : " "; 
-    const char* letterText = game->activeLetter ? game->activeLetter->text : " "; 
-    const char* numberText = game->activeNumber ? game->activeNumber->text : " "; 
-    const char* actionText = game->activeAction ? game->activeAction->text : ""; 
-    const char* move = temp_sprintf("Move: %s%s%s%s%s%s", (streq(actionText, "x") && streq(pieceText, " ")) ? "x" : "", pieceText, (streq(actionText, "x") && !streq(pieceText, " ")) ? "x" : "", letterText, numberText, ""); 
-    DrawTextEx(game->font, move, (Vector2){ BUTTON_PADDING, GetScreenHeight() - (BUTTON_PADDING + TITLE_FONT_SIZE)}, TITLE_FONT_SIZE, 1, WHITE);
-
-    Button reset = { .text = "RESET", .active = false }; 
-    Vector2 dims = MeasureTextEx(game->font, reset.text, BUTTON_FONT_SIZE * 0.8, 1);
-    Vector2 size = { .x = dims.x + (BUTTON_PADDING * 2), .y = (BUTTON_FONT_SIZE * 0.8 + BUTTON_PADDING) };
-    Rectangle rec = { .x = GetScreenWidth()/2, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+    // RESET Button
+    Button reset = { .text = "RESET", .active = false };
+    Vector2 dims = MeasureTextEx(game->font, reset.text, BUTTON_FONT_SIZE * 0.8f, 1);
+    Vector2 size = { .x = dims.x + (BUTTON_PADDING * 2), .y = (BUTTON_FONT_SIZE * 0.8f + BUTTON_PADDING) };
+    Rectangle rec = { .x = GetScreenWidth() / 2.0f, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
     DrawRectangleRec(rec, RED);
-    DrawTextEx(game->font, reset.text, (Vector2){rec.x+BUTTON_PADDING,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE * 0.8, 1, WHITE); 
-    
-    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { 
-        if (game->activePiece) game->activePiece->active = false; 
-        game->activePiece = NULL; 
-        if (game->activeAction) game->activeAction->active = false; 
-        game->activeAction = NULL; 
-        if (game->activeLetter) game->activeLetter->active = false; 
-        game->activeLetter = NULL; 
-        if (game->activeNumber) game->activeNumber->active = false; 
-        game->activeNumber = NULL; 
+    DrawTextEx(game->font, reset.text, (Vector2){rec.x + BUTTON_PADDING, rec.y + BUTTON_PADDING / 2.0f}, BUTTON_FONT_SIZE * 0.8f, 1, WHITE);
+
+    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        ResetMoveSelection(game);
     }
-    
-    Button submit = { .text = "SUBMIT", .active = false }; 
-    dims = MeasureTextEx(game->font, submit.text, BUTTON_FONT_SIZE * 0.8, 1);
-    size = (Vector2){ .x = dims.x + (BUTTON_PADDING * 4), .y = (BUTTON_FONT_SIZE * 0.8 + BUTTON_PADDING) };
-    rec = (Rectangle){ .x = rec.x+rec.width+BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
+
+    // SUBMIT Button
+    Button submit = { .text = "SUBMIT", .active = false };
+    dims = MeasureTextEx(game->font, submit.text, BUTTON_FONT_SIZE * 0.8f, 1);
+    size = (Vector2){ .x = dims.x + (BUTTON_PADDING * 4), .y = (BUTTON_FONT_SIZE * 0.8f + BUTTON_PADDING) };
+    rec = (Rectangle){ .x = rec.x + rec.width + BUTTON_PADDING, .y = GetScreenHeight() - size.y - BUTTON_PADDING, .width = size.x, .height = size.y };
     DrawRectangleRec(rec, GREEN);
-    DrawTextEx(game->font, submit.text, (Vector2){rec.x+BUTTON_PADDING* 2,rec.y+BUTTON_PADDING/2}, BUTTON_FONT_SIZE*0.8, 1, WHITE); 
-    
-    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { 
-        // 1. Construct PGN move components
-        const char *pieceLetter = game->activePiece ? GetPieceLetter(game->activePiece->pt) : "";
-        const char *capStr = (game->activeAction && streq(game->activeAction->text, "x")) ? "x" : "";
-        const char *fileStr = game->activeLetter ? game->activeLetter->text : "";
-        const char *rankStr = game->activeNumber ? game->activeNumber->text : "";
-        const char *suffixStr = (game->activeAction && streq(game->activeAction->text, "+")) ? "+" : 
-                                ((game->activeAction && streq(game->activeAction->text, "#")) ? "#" : "");
-        
-        const char *pgnMove = temp_sprintf("%s%s%s%s%s", pieceLetter, capStr, fileStr, rankStr, suffixStr);
+    DrawTextEx(game->font, submit.text, (Vector2){rec.x + BUTTON_PADDING * 2, rec.y + BUTTON_PADDING / 2.0f}, BUTTON_FONT_SIZE * 0.8f, 1, WHITE);
 
-        // 2. Populate Ply record
-        Ply ply = {0};
-        ply.piece = game->activePiece ? *game->activePiece : (Piece){0};
-        ply.file = fileStr;
-        ply.rank = rankStr;
-        ply.capture = (game->activeAction && streq(game->activeAction->text, "x"));
-        ply.check = (game->activeAction && streq(game->activeAction->text, "+"));
-        ply.checkmate = (game->activeAction && streq(game->activeAction->text, "#"));
-        ply.timestamp = timestamp();
+    if (CheckCollisionPointRec(mouse, rec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        previewPly.timestamp = timestamp();
 
-        // 3. Insert or update Fullmove pairs
         if (game->turn == SIDE_WHITE) {
             Fullmove fm = {0};
             fm.count = game->match.moves.count + 1;
-            fm.white = ply;
+            fm.white = previewPly;
             da_append(&game->match.moves, fm);
-        } else {
-            if (game->match.moves.count > 0) {
-                game->match.moves.items[game->match.moves.count - 1].black = ply;
-            }
+        } else if (game->match.moves.count > 0) {
+            game->match.moves.items[game->match.moves.count - 1].black = previewPly;
         }
 
-        // 4. Log move to terminal using nob_log
         Player *currentPlayer = (game->turn == SIDE_WHITE) ? &game->match.white : &game->match.black;
-        const char *playerName = currentPlayer->name ? currentPlayer->name : GetSideName(game->turn);
-        nob_log(NOB_INFO, "Move recorded [%s (%s)]: %s", playerName, GetSideName(game->turn), pgnMove);
+        const char *logPlayerName = currentPlayer->name ? currentPlayer->name : GetSideName(game->turn);
+        nob_log(NOB_INFO, "Move recorded [%s (%s)]: %s", logPlayerName, GetSideName(game->turn), pgnMove);
 
-        // 5. Switch turn, clear inputs, and transition to moves list screen
-        game->turn = game->turn == SIDE_WHITE ? SIDE_BLACK : SIDE_WHITE;
+        game->turn = (game->turn == SIDE_WHITE) ? SIDE_BLACK : SIDE_WHITE;
+        ResetMoveSelection(game);
 
-        if (game->activePiece) game->activePiece->active = false;
-        game->activePiece = NULL;
-        if (game->activeAction) game->activeAction->active = false;
-        game->activeAction = NULL;
-        if (game->activeLetter) game->activeLetter->active = false;
-        game->activeLetter = NULL;
-        if (game->activeNumber) game->activeNumber->active = false;
-        game->activeNumber = NULL; 
-        
         if (game->match.moves.count > 0) {
             game->movesListPage = (game->match.moves.count - 1) / 42;
         }
         game->screen = SCREEN_MOVES_LIST;
     }
 }
+
+Ply ParseSANToken(const char *token, Side side, size_t moveNum) {
+    Ply ply = {0};
+    ply.fullmove = moveNum;
+    ply.piece.side = side;
+    ply.fromFile = "";
+    ply.fromRank = "";
+    ply.file = "";
+    ply.rank = "";
+    ply.promotion = "";
+    ply.castle = "";
+    ply.timestamp = timestamp();
+
+    char buf[32];
+    strncpy(buf, token, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    size_t len = strlen(buf);
+    if (len == 0) return ply;
+
+    // 1. Strip trailing '+' or '#'
+    if (buf[len - 1] == '+') {
+        ply.check = true;
+        buf[--len] = '\0';
+    } else if (buf[len - 1] == '#') {
+        ply.checkmate = true;
+        buf[--len] = '\0';
+    }
+
+    // 2. Check for Castling ("O-O-O" or "O-O")
+    if (streq(buf, "O-O-O") || streq(buf, "0-0-0")) {
+        ply.castle = "O-O-O";
+        ply.piece.pt = PT_KING;
+        return ply;
+    }
+    if (streq(buf, "O-O") || streq(buf, "0-0")) {
+        ply.castle = "O-O";
+        ply.piece.pt = PT_KING;
+        return ply;
+    }
+
+    // 3. Check for Promotion ("=Q", "=R", "=B", "=N")
+    char *eq = strchr(buf, '=');
+    if (eq && eq[1] != '\0') {
+        switch (eq[1]) {
+            case 'Q': ply.promotion = "=Q"; break;
+            case 'R': ply.promotion = "=R"; break;
+            case 'B': ply.promotion = "=B"; break;
+            case 'N': ply.promotion = "=N"; break;
+            default: break;
+        }
+        *eq = '\0';
+        len = strlen(buf);
+    }
+
+    // 4. Identify Piece Type (uppercase first letter = piece, lowercase = pawn)
+    size_t idx = 0;
+    switch (buf[0]) {
+        case 'K': ply.piece.pt = PT_KING;   idx = 1; break;
+        case 'Q': ply.piece.pt = PT_QUEEN;  idx = 1; break;
+        case 'R': ply.piece.pt = PT_ROOK;   idx = 1; break;
+        case 'B': ply.piece.pt = PT_BISHOP; idx = 1; break;
+        case 'N': ply.piece.pt = PT_KNIGHT; idx = 1; break;
+        default:  ply.piece.pt = PT_PAWN;   idx = 0; break;
+    }
+    ply.piece.value = GetPieceValue(ply.piece.pt);
+
+    // 5. Extract destination square (last 2 chars: file 'a'-'h' + rank '1'-'8')
+    if (len >= idx + 2) {
+        char destFile[2] = { buf[len - 2], '\0' };
+        char destRank[2] = { buf[len - 1], '\0' };
+        ply.file = strdup(destFile);
+        ply.rank = strdup(destRank);
+        len -= 2;
+        buf[len] = '\0';
+    }
+
+    // 6. Scan remaining middle characters for 'x' and disambiguation (fromFile / fromRank)
+    for (size_t i = idx; i < len; ++i) {
+        char c = buf[i];
+        if (c == 'x') {
+            ply.capture = true;
+        } else if (c >= 'a' && c <= 'h') {
+            char f[2] = { c, '\0' };
+            ply.fromFile = strdup(f);
+        } else if (c >= '1' && c <= '8') {
+            char r[2] = { c, '\0' };
+            ply.fromRank = strdup(r);
+        }
+    }
+
+    return ply;
+}
+
+bool LoadMatchFromPGN(Game *game, const char *filePath) {
+    String_Builder sb = {0};
+    if (!read_entire_file(filePath, &sb)) {
+        nob_log(WARNING, "Could not load seed PGN file: %s", filePath);
+        return false;
+    }
+    sb_append_null(&sb);
+
+    game->match = (Match){0};
+    game->match.timestamp = timestamp();
+    game->match.white.side = SIDE_WHITE;
+    game->match.black.side = SIDE_BLACK;
+
+    char *p = sb.items;
+    Side nextSide = SIDE_WHITE;
+
+    while (*p != '\0') {
+        // Skip whitespace
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (*p == '\0') break;
+
+        // Parse Header Tags: [Tag "Value"]
+        if (*p == '[') {
+            char *endBracket = strchr(p, ']');
+            if (!endBracket) break;
+            *endBracket = '\0';
+
+            char *quote1 = strchr(p + 1, '"');
+            char *quote2 = quote1 ? strchr(quote1 + 1, '"') : NULL;
+            if (quote1 && quote2) {
+                *quote2 = '\0';
+                const char *val = quote1 + 1;
+                if (strncmp(p + 1, "White ", 6) == 0) {
+                    game->match.white.name = strdup(val);
+                } else if (strncmp(p + 1, "Black ", 6) == 0) {
+                    game->match.black.name = strdup(val);
+                }
+            }
+            p = endBracket + 1;
+            continue;
+        }
+
+        // Skip PGN brace comments { ... }
+        if (*p == '{') {
+            char *endBrace = strchr(p, '}');
+            if (!endBrace) break;
+            p = endBrace + 1;
+            continue;
+        }
+
+        // Read next whitespace-delimited token
+        char *tokStart = p;
+        while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n') p++;
+        char saved = *p;
+        *p = '\0';
+
+        // Skip game result markers
+        if (streq(tokStart, "1-0") || streq(tokStart, "0-1") ||
+            streq(tokStart, "1/2-1/2") || streq(tokStart, "*")) {
+            if (saved != '\0') p++;
+            continue;
+        }
+
+        // Handle move number prefixes (e.g., "1." or "12.c4" or "1...")
+        char *dot = strrchr(tokStart, '.');
+        if (dot) {
+            tokStart = dot + 1;
+            if (*tokStart == '\0') {
+                if (saved != '\0') p++;
+                continue;
+            }
+        }
+
+        // Parse SAN move and append to Fullmoves
+        if (nextSide == SIDE_WHITE) {
+            Fullmove fm = {0};
+            fm.count = game->match.moves.count + 1;
+            fm.white = ParseSANToken(tokStart, SIDE_WHITE, fm.count);
+            da_append(&game->match.moves, fm);
+            nextSide = SIDE_BLACK;
+        } else if (game->match.moves.count > 0) {
+            Fullmove *last = &game->match.moves.items[game->match.moves.count - 1];
+            last->black = ParseSANToken(tokStart, SIDE_BLACK, last->count);
+            nextSide = SIDE_WHITE;
+        }
+
+        if (saved != '\0') p++;
+    }
+
+    game->turn = nextSide;
+    game->movesListPage = 0;
+    sb_free(sb);
+
+    nob_log(INFO, "Seeded match from %s (%zu fullmoves loaded)", filePath, game->match.moves.count);
+    return true;
+}
+
 int main(void)
 {
       // 1. Initialize with temporary values so we can probe the hardware
@@ -949,8 +1319,19 @@ int main(void)
     game.letters = CreateLetterButtons();
     game.numbers = CreateNumberButtons();
     game.actions = CreateActionButtons();
+    game.promotions = CreatePromotionButtons();
+    game.castles = CreateCastleButtons();
+    game.fromFile = "";
+    game.fromRank = "";
     game.availablePlayers = CreatePlayerList();
     game.match = (Match){0};
+
+    // Seed test PGN match if present in working directory
+    if (file_exists("kasparov_karpov_1987_g24.pgn") == 1) {
+        if (LoadMatchFromPGN(&game, "kasparov_karpov_1987_g24.pgn")) {
+            game.screen = SCREEN_MOVES_LIST;
+        }
+    }
 
     while (!WindowShouldClose()) {
         size_t mark = temp_save();
