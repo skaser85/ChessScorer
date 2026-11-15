@@ -6,6 +6,8 @@
 #define NOB_IMPLEMENTATION
 #include "./nob.h"
 
+#include "qrcodegen.h"
+
 #define ASSETS_DIR "./assets"
 #define PIECES_DIR ASSETS_DIR"/pieces"
 #define FONTS_DIR ASSETS_DIR"/fonts"
@@ -84,7 +86,8 @@ typedef enum {
   SCREEN_START_GAME,
   SCREEN_PLAYER_SETUP,
   SCREEN_MOVES_LIST,
-  SCREEN_MOVE_SELECTION
+  SCREEN_MOVE_SELECTION,
+  SCREEN_QR_CODE
 } ScreenState;
 
 typedef struct {
@@ -199,6 +202,9 @@ typedef struct {
     PlayerList availablePlayers;
     Match match;
     size_t movesListPage;
+    uint8_t qrCode[qrcodegen_BUFFER_LEN_MAX];
+    bool qrValid;
+    size_t qrPayloadBytes;
 } Game;
 
 struct tm *timestamp() {
@@ -227,6 +233,7 @@ const char* GetScreenStateText(ScreenState state) {
     case SCREEN_PLAYER_SETUP: return "PLAYER_SETUP";
     case SCREEN_MOVES_LIST: return "MOVES_LIST";
     case SCREEN_MOVE_SELECTION: return "MOVE_SELECTION";
+    case SCREEN_QR_CODE: return "QR_CODE";
     default: return temp_sprintf("%d", state);
   }
 }
@@ -597,6 +604,61 @@ const char *GetFullMoveText(Fullmove *fm) {
     return temp_sprintf("%7s,%7s", whiteMove, blackMove);
 }
 
+char *FormatMatchToPGN(Match *match) {
+    String_Builder sb = {0};
+
+    const char *whiteName = (match->white.name && strlen(match->white.name) > 0) ? match->white.name : "White";
+    const char *blackName = (match->black.name && strlen(match->black.name) > 0) ? match->black.name : "Black";
+
+    struct tm *ts = match->timestamp ? match->timestamp : timestamp();
+    const char *dateStr = TextFormat("%04d.%02d.%02d", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday);
+
+    sb_appendf(&sb, "[Event \"ChessScorer Match\"]\n");
+    sb_appendf(&sb, "[Site \"ChessScorer\"]\n");
+    sb_appendf(&sb, "[Date \"%s\"]\n", dateStr);
+    sb_appendf(&sb, "[White \"%s\"]\n", whiteName);
+    sb_appendf(&sb, "[Black \"%s\"]\n", blackName);
+    sb_appendf(&sb, "[Result \"*\"]\n\n");
+
+    for (size_t i = 0; i < match->moves.count; ++i) {
+        Fullmove *fm = &match->moves.items[i];
+        const char *wMove = FormatPlyPGN(&fm->white);
+        sb_appendf(&sb, "%zu. %s", fm->count, wMove);
+
+        bool blackMoved = (fm->black.castle && strlen(fm->black.castle) > 0) ||
+                          (fm->black.file && strlen(fm->black.file) > 0);
+        if (blackMoved) {
+            const char *bMove = FormatPlyPGN(&fm->black);
+            sb_appendf(&sb, " %s", bMove);
+        }
+
+        sb_appendf(&sb, ((i + 1) % 6 == 0) ? "\n" : " ");
+    }
+
+    sb_appendf(&sb, "*\n");
+    sb_append_null(&sb);
+    return sb.items; // Caller frees via NOB_FREE()
+}
+
+void PrepareMatchQR(Game *game) {
+    char *pgnText = FormatMatchToPGN(&game->match);
+    game->qrPayloadBytes = strlen(pgnText);
+
+    uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
+    game->qrValid = qrcodegen_encodeText(
+        pgnText,
+        tempBuffer,
+        game->qrCode,
+        qrcodegen_Ecc_MEDIUM,
+        qrcodegen_VERSION_MIN,
+        qrcodegen_VERSION_MAX,
+        qrcodegen_Mask_AUTO,
+        true
+    );
+
+    NOB_FREE(pgnText);
+}
+
 void DrawScreen_MovesList(Game *game, Vector2 mouse) {
     const size_t colCount = 3;
     const size_t rowsPerCol = 14;
@@ -724,6 +786,33 @@ void DrawScreen_MovesList(Game *game, Vector2 mouse) {
 
     if (canGoNext && CheckCollisionPointRec(mouse, nextRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         game->movesListPage++;
+    }
+    
+    currentControlY += navBtnHeight + BUTTON_MARGIN;
+
+    const char *qrBtnText = "QR";
+    Vector2 qrDims = MeasureTextEx(game->font, qrBtnText, navFontSize, 1);
+    Rectangle qrRec = {
+        .x = navSidebarX,
+        .y = currentControlY,
+        .width = navWidth,
+        .height = navBtnHeight
+    };
+
+    DrawRectangleRec(qrRec, DARKGREEN);
+    DrawRectangleLinesEx(qrRec, 1, LIME);
+    DrawTextEx(
+        game->font,
+        qrBtnText,
+        (Vector2){qrRec.x + (qrRec.width - qrDims.x) / 2.0f, qrRec.y + (qrRec.height - qrDims.y) / 2.0f},
+        navFontSize,
+        1,
+        WHITE
+    );
+
+    if (CheckCollisionPointRec(mouse, qrRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        PrepareMatchQR(game);
+        game->screen = SCREEN_QR_CODE;
     }
 
     // 3. 3-Column Scoresheet Grid with Dynamic Font Scaling
@@ -1096,6 +1185,91 @@ void DrawScreen_MoveSelection(Game *game, Vector2 mouse) {
     }
 }
 
+void DrawScreen_QRCode(Game *game, Vector2 mouse) {
+    // Top-Right "Back" Button
+    const char *backText = "Back";
+    float btnFontSize = BUTTON_FONT_SIZE * 0.75f;
+    Vector2 backDims = MeasureTextEx(game->font, backText, btnFontSize, 1);
+    float backW = backDims.x + BUTTON_PADDING * 2;
+    float backH = BUTTON_DIM_Y * 0.65f;
+
+    Rectangle backRec = {
+        .x = GetScreenWidth() - backW - BUTTON_MARGIN,
+        .y = BUTTON_MARGIN,
+        .width = backW,
+        .height = backH
+    };
+
+    DrawRectangleRec(backRec, BLUE);
+    DrawTextEx(
+        game->font,
+        backText,
+        (Vector2){backRec.x + BUTTON_PADDING, backRec.y + (backRec.height - backDims.y) / 2.0f},
+        btnFontSize,
+        1,
+        WHITE
+    );
+
+    if (CheckCollisionPointRec(mouse, backRec) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        game->screen = SCREEN_MOVES_LIST;
+    }
+
+    // Left-Side Status & Byte Count Info
+    float infoFontSize = BUTTON_FONT_SIZE * 0.45f;
+    DrawTextEx(game->font, "Scan PGN QR", (Vector2){BUTTON_MARGIN, BUTTON_MARGIN}, TITLE_FONT_SIZE * 0.55f, 1, WHITE);
+    DrawTextEx(
+        game->font,
+        temp_sprintf("Moves: %zu\nBytes: %zu", game->match.moves.count, game->qrPayloadBytes),
+        (Vector2){BUTTON_MARGIN, BUTTON_MARGIN + TITLE_FONT_SIZE * 0.8f},
+        infoFontSize,
+        1,
+        LIGHTGRAY
+    );
+
+    if (!game->qrValid) {
+        DrawTextEx(
+            game->font,
+            "Game too large for QR code.",
+            (Vector2){BUTTON_MARGIN, GetScreenHeight() / 2.0f},
+            infoFontSize,
+            1,
+            RED
+        );
+        return;
+    }
+
+    // Compute integer pixel scale + 4-module white quiet zone
+    int qrSize = qrcodegen_getSize(game->qrCode);
+    int quietZone = 4;
+    int totalModules = qrSize + (quietZone * 2);
+
+    int maxDisplayPx = GetScreenHeight() - (int)(BUTTON_MARGIN * 2);
+    int scale = maxDisplayPx / totalModules;
+    if (scale < 2) scale = 2;
+
+    int boxPx = totalModules * scale;
+    int startX = (GetScreenWidth() - boxPx) / 2;
+    int startY = (GetScreenHeight() - boxPx) / 2;
+
+    // Draw solid white background (includes quiet zone)
+    DrawRectangle(startX, startY, boxPx, boxPx, WHITE);
+
+    // Draw dark QR modules
+    for (int y = 0; y < qrSize; ++y) {
+        for (int x = 0; x < qrSize; ++x) {
+            if (qrcodegen_getModule(game->qrCode, x, y)) {
+                DrawRectangle(
+                    startX + (x + quietZone) * scale,
+                    startY + (y + quietZone) * scale,
+                    scale,
+                    scale,
+                    BLACK
+                );
+            }
+        }
+    }
+}
+
 Ply ParseSANToken(const char *token, Side side, size_t moveNum) {
     Ply ply = {0};
     ply.fullmove = moveNum;
@@ -1345,6 +1519,7 @@ int main(void)
           case SCREEN_PLAYER_SETUP: DrawScreen_PlayerSetup(&game, mouse); break;
           case SCREEN_MOVES_LIST: DrawScreen_MovesList(&game, mouse); break;
           case SCREEN_MOVE_SELECTION: DrawScreen_MoveSelection(&game, mouse); break;
+          case SCREEN_QR_CODE: DrawScreen_QRCode(&game, mouse); break;
           default: nob_log(ERROR, "Unknown screen state: %s", GetScreenStateText(game.screen)); 
         } 
         

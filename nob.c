@@ -71,11 +71,11 @@ int main(int argc, char **argv)
     // 2. Adjust target directories and output filenames
     if (cross) {
         cmd_append(&cmd, "-I./raylib-6.0_linux_arm64/include/");
-        cmd_append(&cmd, "-o", "./main_pi", "main.c");
+        cmd_append(&cmd, "-o", "./main_pi", "main.c", "qrcodegen.c");
         cmd_append(&cmd, "-L./raylib-6.0_linux_arm64/lib/");
     } else {
         cmd_append(&cmd, "-I./raylib-6.0_linux_amd64/include/");
-        cmd_append(&cmd, "-o", "./main", "main.c");
+        cmd_append(&cmd, "-o", "./main", "main.c", "qrcodegen.c");
         cmd_append(&cmd, "-L./raylib-6.0_linux_amd64/lib/");
     }
 
